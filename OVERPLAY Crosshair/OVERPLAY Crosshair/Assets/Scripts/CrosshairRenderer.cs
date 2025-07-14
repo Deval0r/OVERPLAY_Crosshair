@@ -15,6 +15,7 @@ public class CrosshairRenderer : Graphic
     public Color frameColor = Color.white;
     [Range(0, 1)] public float frameOpacity = 1f;
     public float frameScale = 1f;
+    [Range(0, 360)] public float frameRotation = 0f;
 
     // Hairs
     public HairStyle hairStyle = HairStyle.Even;
@@ -24,6 +25,7 @@ public class CrosshairRenderer : Graphic
     public float hairLength = 20f;
     public Color hairColor = Color.white;
     [Range(0, 1)] public float hairOpacity = 1f;
+    [Range(0, 360)] public float hairsRotation = 0f;
 
     // Dot
     public CrosshairShape dotShape = CrosshairShape.Circle;
@@ -31,6 +33,7 @@ public class CrosshairRenderer : Graphic
     public Color dotColor = Color.white;
     [Range(0, 1)] public float dotOpacity = 1f;
     public float dotScale = 1f;
+    [Range(0, 360)] public float dotRotation = 0f;
 
     // --- UI References ---
     [Header("Frame UI")]
@@ -38,6 +41,7 @@ public class CrosshairRenderer : Graphic
     public Toggle frameFilledToggle;
     public Slider frameOpacitySlider;
     public Slider frameScaleSlider;
+    public Slider frameRotationSlider;
     public Button frameColorButton;
 
     [Header("Hairs UI")]
@@ -46,6 +50,7 @@ public class CrosshairRenderer : Graphic
     public Slider customAngleSlider;
     public Slider hairThicknessSlider;
     public Slider hairLengthSlider;
+    public Slider hairsRotationSlider;
     public Button hairColorButton;
     public Slider hairOpacitySlider;
 
@@ -55,6 +60,7 @@ public class CrosshairRenderer : Graphic
     public Button dotColorButton;
     public Slider dotOpacitySlider;
     public Slider dotScaleSlider;
+    public Slider dotRotationSlider;
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {
@@ -74,6 +80,7 @@ public class CrosshairRenderer : Graphic
         if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { frameFilled = val; SetVerticesDirty(); });
         if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { frameOpacity = val; SetVerticesDirty(); });
         if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { frameScale = val; SetVerticesDirty(); });
+        if (frameRotationSlider) frameRotationSlider.onValueChanged.AddListener(val => { frameRotation = val; SetVerticesDirty(); });
         if (frameColorButton) frameColorButton.onClick.AddListener(() => PickColor(c => { frameColor = c; SetVerticesDirty(); }));
 
         // --- Hairs UI ---
@@ -82,6 +89,7 @@ public class CrosshairRenderer : Graphic
         if (customAngleSlider) customAngleSlider.onValueChanged.AddListener(val => { customAngle = val; SetVerticesDirty(); });
         if (hairThicknessSlider) hairThicknessSlider.onValueChanged.AddListener(val => { hairThickness = val; SetVerticesDirty(); });
         if (hairLengthSlider) hairLengthSlider.onValueChanged.AddListener(val => { hairLength = val; SetVerticesDirty(); });
+        if (hairsRotationSlider) hairsRotationSlider.onValueChanged.AddListener(val => { hairsRotation = val; SetVerticesDirty(); });
         if (hairColorButton) hairColorButton.onClick.AddListener(() => PickColor(c => { hairColor = c; SetVerticesDirty(); }));
         if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { hairOpacity = val; SetVerticesDirty(); });
 
@@ -91,6 +99,7 @@ public class CrosshairRenderer : Graphic
         if (dotColorButton) dotColorButton.onClick.AddListener(() => PickColor(c => { dotColor = c; SetVerticesDirty(); }));
         if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { dotOpacity = val; SetVerticesDirty(); });
         if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { dotScale = val; SetVerticesDirty(); });
+        if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => { dotRotation = val; SetVerticesDirty(); });
 
         UpdateHairUI();
     }
@@ -109,16 +118,17 @@ public class CrosshairRenderer : Graphic
         frameCol.a *= frameOpacity;
         float size = rectTransform.rect.width * 0.5f * frameScale;
         Vector2 center = rectTransform.rect.center;
+        float rotRad = frameRotation * Mathf.Deg2Rad;
         switch (frameShape)
         {
             case CrosshairShape.Circle:
-                DrawCircle(vh, center, size, frameCol, frameFilled, 64);
+                DrawCircle(vh, center, size, frameCol, frameFilled, 64, rotRad);
                 break;
             case CrosshairShape.Square:
-                DrawSquare(vh, center, size, frameCol, frameFilled);
+                DrawSquare(vh, center, size, frameCol, frameFilled, rotRad);
                 break;
             case CrosshairShape.Triangle:
-                DrawTriangle(vh, center, size, frameCol, frameFilled);
+                DrawTriangle(vh, center, size, frameCol, frameFilled, rotRad);
                 break;
         }
     }
@@ -133,6 +143,7 @@ public class CrosshairRenderer : Graphic
         float angleStep = 360f / count;
         float thickness = hairThickness;
         float length = hairLength * frameScale;
+        float baseRot = hairsRotation * Mathf.Deg2Rad;
         if (hairStyle == HairStyle.Custom)
         {
             angleStep = customAngle;
@@ -140,7 +151,7 @@ public class CrosshairRenderer : Graphic
         }
         for (int i = 0; i < count; i++)
         {
-            float angle = i * angleStep * Mathf.Deg2Rad;
+            float angle = baseRot + i * angleStep * Mathf.Deg2Rad;
             Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
             Vector2 start = center + dir * (size * 0.2f);
             Vector2 end = center + dir * (size * 0.9f);
@@ -154,22 +165,36 @@ public class CrosshairRenderer : Graphic
         dotCol.a *= dotOpacity;
         float size = rectTransform.rect.width * 0.08f * dotScale;
         Vector2 center = rectTransform.rect.center;
+        float rotRad = dotRotation * Mathf.Deg2Rad;
         switch (dotShape)
         {
             case CrosshairShape.Circle:
-                DrawCircle(vh, center, size, dotCol, dotFilled, 32);
+                DrawCircle(vh, center, size, dotCol, dotFilled, 32, rotRad);
                 break;
             case CrosshairShape.Square:
-                DrawSquare(vh, center, size, dotCol, dotFilled);
+                DrawSquare(vh, center, size, dotCol, dotFilled, rotRad);
                 break;
             case CrosshairShape.Triangle:
-                DrawTriangle(vh, center, size, dotCol, dotFilled);
+                DrawTriangle(vh, center, size, dotCol, dotFilled, rotRad);
                 break;
         }
     }
 
     // --- Helper Methods ---
-    void DrawCircle(VertexHelper vh, Vector2 center, float radius, Color color, bool filled, int segments)
+    // Rotates a point around a pivot by angle (in radians)
+    Vector2 RotatePoint(Vector2 point, Vector2 pivot, float angle)
+    {
+        float cos = Mathf.Cos(angle);
+        float sin = Mathf.Sin(angle);
+        Vector2 dir = point - pivot;
+        Vector2 rotated = new Vector2(
+            dir.x * cos - dir.y * sin,
+            dir.x * sin + dir.y * cos
+        );
+        return rotated + pivot;
+    }
+
+    void DrawCircle(VertexHelper vh, Vector2 center, float radius, Color color, bool filled, int segments, float rotation = 0f)
     {
         if (filled)
         {
@@ -177,7 +202,7 @@ public class CrosshairRenderer : Graphic
             vh.AddVert(center, color, Vector2.zero);
             for (int i = 0; i <= segments; i++)
             {
-                float angle = 2 * Mathf.PI * i / segments;
+                float angle = rotation + 2 * Mathf.PI * i / segments;
                 Vector2 pos = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
                 vh.AddVert(pos, color, Vector2.zero);
             }
@@ -191,68 +216,76 @@ public class CrosshairRenderer : Graphic
             int startIndex = vh.currentVertCount;
             for (int i = 0; i <= segments; i++)
             {
-                float angle = 2 * Mathf.PI * i / segments;
+                float angle = rotation + 2 * Mathf.PI * i / segments;
                 Vector2 pos = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
                 vh.AddVert(pos, color, Vector2.zero);
             }
             float thickness = 2f; // outline thickness
             for (int i = 0; i < segments; i++)
             {
+                float angleA = rotation + 2 * Mathf.PI * i / segments;
+                float angleB = rotation + 2 * Mathf.PI * (i + 1) / segments;
                 DrawThickLine(vh,
-                    center + new Vector2(Mathf.Cos(2 * Mathf.PI * i / segments), Mathf.Sin(2 * Mathf.PI * i / segments)) * radius,
-                    center + new Vector2(Mathf.Cos(2 * Mathf.PI * (i + 1) / segments), Mathf.Sin(2 * Mathf.PI * (i + 1) / segments)) * radius,
+                    center + new Vector2(Mathf.Cos(angleA), Mathf.Sin(angleA)) * radius,
+                    center + new Vector2(Mathf.Cos(angleB), Mathf.Sin(angleB)) * radius,
                     thickness, color);
             }
         }
     }
 
-    void DrawSquare(VertexHelper vh, Vector2 center, float size, Color color, bool filled)
+    void DrawSquare(VertexHelper vh, Vector2 center, float size, Color color, bool filled, float rotation = 0f)
     {
         Vector2 half = Vector2.one * size;
-        Vector2 tl = center + new Vector2(-half.x, half.y);
-        Vector2 tr = center + new Vector2(half.x, half.y);
-        Vector2 br = center + new Vector2(half.x, -half.y);
-        Vector2 bl = center + new Vector2(-half.x, -half.y);
+        Vector2[] corners = new Vector2[4]
+        {
+            new Vector2(-half.x, half.y),
+            new Vector2(half.x, half.y),
+            new Vector2(half.x, -half.y),
+            new Vector2(-half.x, -half.y)
+        };
+        // Rotate all corners as a group
+        for (int i = 0; i < 4; i++)
+            corners[i] = RotatePoint(corners[i] + center, center, rotation);
         if (filled)
         {
             int start = vh.currentVertCount;
-            vh.AddVert(tl, color, Vector2.zero);
-            vh.AddVert(tr, color, Vector2.zero);
-            vh.AddVert(br, color, Vector2.zero);
-            vh.AddVert(bl, color, Vector2.zero);
+            for (int i = 0; i < 4; i++)
+                vh.AddVert(corners[i], color, Vector2.zero);
             vh.AddTriangle(start, start + 1, start + 2);
             vh.AddTriangle(start, start + 2, start + 3);
         }
         else
         {
             float thickness = 2f;
-            DrawThickLine(vh, tl, tr, thickness, color);
-            DrawThickLine(vh, tr, br, thickness, color);
-            DrawThickLine(vh, br, bl, thickness, color);
-            DrawThickLine(vh, bl, tl, thickness, color);
+            for (int i = 0; i < 4; i++)
+                DrawThickLine(vh, corners[i], corners[(i + 1) % 4], thickness, color);
         }
     }
 
-    void DrawTriangle(VertexHelper vh, Vector2 center, float size, Color color, bool filled)
+    void DrawTriangle(VertexHelper vh, Vector2 center, float size, Color color, bool filled, float rotation = 0f)
     {
         float h = size * Mathf.Sqrt(3) / 2;
-        Vector2 p1 = center + new Vector2(0, h);
-        Vector2 p2 = center + new Vector2(-size, -h / 2);
-        Vector2 p3 = center + new Vector2(size, -h / 2);
+        Vector2[] pts = new Vector2[3]
+        {
+            new Vector2(0, h),
+            new Vector2(-size, -h / 2),
+            new Vector2(size, -h / 2)
+        };
+        // Rotate all points as a group
+        for (int i = 0; i < 3; i++)
+            pts[i] = RotatePoint(pts[i] + center, center, rotation);
         if (filled)
         {
             int start = vh.currentVertCount;
-            vh.AddVert(p1, color, Vector2.zero);
-            vh.AddVert(p2, color, Vector2.zero);
-            vh.AddVert(p3, color, Vector2.zero);
+            for (int i = 0; i < 3; i++)
+                vh.AddVert(pts[i], color, Vector2.zero);
             vh.AddTriangle(start, start + 1, start + 2);
         }
         else
         {
             float thickness = 2f;
-            DrawThickLine(vh, p1, p2, thickness, color);
-            DrawThickLine(vh, p2, p3, thickness, color);
-            DrawThickLine(vh, p3, p1, thickness, color);
+            for (int i = 0; i < 3; i++)
+                DrawThickLine(vh, pts[i], pts[(i + 1) % 3], thickness, color);
         }
     }
 
