@@ -1,64 +1,143 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
+
+public enum CrosshairShape { Circle, Square, Triangle }
+public enum HairStyle { Even, Custom }
 
 [RequireComponent(typeof(CanvasRenderer))]
 public class CrosshairRenderer : Graphic
 {
-    public CrosshairSettings settings;
+    // --- Crosshair Settings ---
+    // Frame
+    public CrosshairShape frameShape = CrosshairShape.Circle;
+    public bool frameFilled = false;
+    public Color frameColor = Color.white;
+    [Range(0, 1)] public float frameOpacity = 1f;
+    public float frameScale = 1f;
+
+    // Hairs
+    public HairStyle hairStyle = HairStyle.Even;
+    public int hairCount = 4;
+    public float customAngle = 90f;
+    public float hairThickness = 2f;
+    public float hairLength = 20f;
+    public Color hairColor = Color.white;
+    [Range(0, 1)] public float hairOpacity = 1f;
+
+    // Dot
+    public CrosshairShape dotShape = CrosshairShape.Circle;
+    public bool dotFilled = true;
+    public Color dotColor = Color.white;
+    [Range(0, 1)] public float dotOpacity = 1f;
+    public float dotScale = 1f;
+
+    // --- UI References ---
+    [Header("Frame UI")]
+    public TMP_Dropdown frameShapeDropdown;
+    public Toggle frameFilledToggle;
+    public Slider frameOpacitySlider;
+    public Slider frameScaleSlider;
+    public Button frameColorButton;
+
+    [Header("Hairs UI")]
+    public TMP_Dropdown hairStyleDropdown;
+    public Slider hairCountSlider;
+    public Slider customAngleSlider;
+    public Slider hairThicknessSlider;
+    public Slider hairLengthSlider;
+    public Button hairColorButton;
+    public Slider hairOpacitySlider;
+
+    [Header("Dot UI")]
+    public TMP_Dropdown dotShapeDropdown;
+    public Toggle dotFilledToggle;
+    public Button dotColorButton;
+    public Slider dotOpacitySlider;
+    public Slider dotScaleSlider;
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {
         vh.Clear();
-        if (settings == null) return;
-
-        // Draw frame (circle/square/triangle)
+        // Draw frame
         DrawFrame(vh);
-
         // Draw hairs
         DrawHairs(vh);
-
         // Draw dot
         DrawDot(vh);
     }
 
+    void Start()
+    {
+        // --- Frame UI ---
+        if (frameShapeDropdown) frameShapeDropdown.onValueChanged.AddListener(val => { frameShape = (CrosshairShape)val; SetVerticesDirty(); });
+        if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { frameFilled = val; SetVerticesDirty(); });
+        if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { frameOpacity = val; SetVerticesDirty(); });
+        if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { frameScale = val; SetVerticesDirty(); });
+        if (frameColorButton) frameColorButton.onClick.AddListener(() => PickColor(c => { frameColor = c; SetVerticesDirty(); }));
+
+        // --- Hairs UI ---
+        if (hairStyleDropdown) hairStyleDropdown.onValueChanged.AddListener(val => { hairStyle = (HairStyle)val; SetVerticesDirty(); UpdateHairUI(); });
+        if (hairCountSlider) hairCountSlider.onValueChanged.AddListener(val => { hairCount = Mathf.RoundToInt(val); SetVerticesDirty(); });
+        if (customAngleSlider) customAngleSlider.onValueChanged.AddListener(val => { customAngle = val; SetVerticesDirty(); });
+        if (hairThicknessSlider) hairThicknessSlider.onValueChanged.AddListener(val => { hairThickness = val; SetVerticesDirty(); });
+        if (hairLengthSlider) hairLengthSlider.onValueChanged.AddListener(val => { hairLength = val; SetVerticesDirty(); });
+        if (hairColorButton) hairColorButton.onClick.AddListener(() => PickColor(c => { hairColor = c; SetVerticesDirty(); }));
+        if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { hairOpacity = val; SetVerticesDirty(); });
+
+        // --- Dot UI ---
+        if (dotShapeDropdown) dotShapeDropdown.onValueChanged.AddListener(val => { dotShape = (CrosshairShape)val; SetVerticesDirty(); });
+        if (dotFilledToggle) dotFilledToggle.onValueChanged.AddListener(val => { dotFilled = val; SetVerticesDirty(); });
+        if (dotColorButton) dotColorButton.onClick.AddListener(() => PickColor(c => { dotColor = c; SetVerticesDirty(); }));
+        if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { dotOpacity = val; SetVerticesDirty(); });
+        if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { dotScale = val; SetVerticesDirty(); });
+
+        UpdateHairUI();
+    }
+
+    void UpdateHairUI()
+    {
+        bool isCustom = hairStyle == HairStyle.Custom;
+        if (customAngleSlider) customAngleSlider.gameObject.SetActive(isCustom);
+        if (hairCountSlider) hairCountSlider.gameObject.SetActive(!isCustom);
+    }
+
+    // --- Drawing Methods ---
     void DrawFrame(VertexHelper vh)
     {
-        Color frameCol = settings.frameColor;
-        frameCol.a *= settings.frameOpacity;
-        float size = rectTransform.rect.width * 0.5f * settings.frameScale;
+        Color frameCol = frameColor;
+        frameCol.a *= frameOpacity;
+        float size = rectTransform.rect.width * 0.5f * frameScale;
         Vector2 center = rectTransform.rect.center;
-
-        switch (settings.frameShape)
+        switch (frameShape)
         {
             case CrosshairShape.Circle:
-                DrawCircle(vh, center, size, frameCol, settings.frameFilled, 64);
+                DrawCircle(vh, center, size, frameCol, frameFilled, 64);
                 break;
             case CrosshairShape.Square:
-                DrawSquare(vh, center, size, frameCol, settings.frameFilled);
+                DrawSquare(vh, center, size, frameCol, frameFilled);
                 break;
             case CrosshairShape.Triangle:
-                DrawTriangle(vh, center, size, frameCol, settings.frameFilled);
+                DrawTriangle(vh, center, size, frameCol, frameFilled);
                 break;
         }
     }
 
     void DrawHairs(VertexHelper vh)
     {
-        Color hairCol = settings.hairColor;
-        hairCol.a *= settings.hairOpacity;
-        float size = rectTransform.rect.width * 0.5f * settings.frameScale;
+        Color hairCol = hairColor;
+        hairCol.a *= hairOpacity;
+        float size = rectTransform.rect.width * 0.5f * frameScale;
         Vector2 center = rectTransform.rect.center;
-        int count = Mathf.Max(1, settings.hairCount);
+        int count = Mathf.Max(1, hairCount);
         float angleStep = 360f / count;
-        float thickness = settings.hairThickness;
-        float length = settings.hairLength * settings.frameScale;
-
-        if (settings.hairStyle == HairStyle.Custom)
+        float thickness = hairThickness;
+        float length = hairLength * frameScale;
+        if (hairStyle == HairStyle.Custom)
         {
-            angleStep = settings.customAngle;
+            angleStep = customAngle;
             count = Mathf.Max(1, Mathf.FloorToInt(360f / angleStep));
         }
-
         for (int i = 0; i < count; i++)
         {
             float angle = i * angleStep * Mathf.Deg2Rad;
@@ -71,27 +150,25 @@ public class CrosshairRenderer : Graphic
 
     void DrawDot(VertexHelper vh)
     {
-        Color dotCol = settings.dotColor;
-        dotCol.a *= settings.dotOpacity;
-        float size = rectTransform.rect.width * 0.08f * settings.dotScale;
+        Color dotCol = dotColor;
+        dotCol.a *= dotOpacity;
+        float size = rectTransform.rect.width * 0.08f * dotScale;
         Vector2 center = rectTransform.rect.center;
-
-        switch (settings.dotShape)
+        switch (dotShape)
         {
             case CrosshairShape.Circle:
-                DrawCircle(vh, center, size, dotCol, settings.dotFilled, 32);
+                DrawCircle(vh, center, size, dotCol, dotFilled, 32);
                 break;
             case CrosshairShape.Square:
-                DrawSquare(vh, center, size, dotCol, settings.dotFilled);
+                DrawSquare(vh, center, size, dotCol, dotFilled);
                 break;
             case CrosshairShape.Triangle:
-                DrawTriangle(vh, center, size, dotCol, settings.dotFilled);
+                DrawTriangle(vh, center, size, dotCol, dotFilled);
                 break;
         }
     }
 
     // --- Helper Methods ---
-
     void DrawCircle(VertexHelper vh, Vector2 center, float radius, Color color, bool filled, int segments)
     {
         if (filled)
@@ -190,5 +267,12 @@ public class CrosshairRenderer : Graphic
         vh.AddVert(end - normal, color, Vector2.zero);
         vh.AddTriangle(idx, idx + 1, idx + 2);
         vh.AddTriangle(idx, idx + 2, idx + 3);
+    }
+
+    // --- Color Picker Placeholder ---
+    void PickColor(System.Action<Color> onColorPicked)
+    {
+        // Replace with your color picker dialog
+        onColorPicked?.Invoke(Color.white);
     }
 }
