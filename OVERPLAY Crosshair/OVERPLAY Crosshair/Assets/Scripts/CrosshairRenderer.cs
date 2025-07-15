@@ -53,6 +53,8 @@ public class CrosshairRenderer : Graphic
     public Slider hairsRotationSlider;
     public Button hairColorButton;
     public Slider hairOpacitySlider;
+    public Toggle hairsExtendPastFrameToggle;
+    public Slider hairDistanceSlider;
 
     [Header("Dot UI")]
     public TMP_Dropdown dotShapeDropdown;
@@ -62,14 +64,15 @@ public class CrosshairRenderer : Graphic
     public Slider dotScaleSlider;
     public Slider dotRotationSlider;
 
+    [Header("Snapping")]
+    public Toggle snapRotationToggle;
+    private bool SnapEnabled => snapRotationToggle != null && snapRotationToggle.isOn;
+
     protected override void OnPopulateMesh(VertexHelper vh)
     {
         vh.Clear();
-        // Draw frame
         DrawFrame(vh);
-        // Draw hairs
         DrawHairs(vh);
-        // Draw dot
         DrawDot(vh);
     }
 
@@ -80,7 +83,13 @@ public class CrosshairRenderer : Graphic
         if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { frameFilled = val; SetVerticesDirty(); });
         if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { frameOpacity = val; SetVerticesDirty(); });
         if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { frameScale = val; SetVerticesDirty(); });
-        if (frameRotationSlider) frameRotationSlider.onValueChanged.AddListener(val => { frameRotation = val; SetVerticesDirty(); });
+        if (frameRotationSlider) frameRotationSlider.onValueChanged.AddListener(val => {
+            float value = frameRotationSlider.value;
+            if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
+            frameRotation = value;
+            if (SnapEnabled) frameRotationSlider.value = value;
+            SetVerticesDirty();
+        });
         if (frameColorButton) frameColorButton.onClick.AddListener(() => PickColor(c => { frameColor = c; SetVerticesDirty(); }));
 
         // --- Hairs UI ---
@@ -89,9 +98,17 @@ public class CrosshairRenderer : Graphic
         if (customAngleSlider) customAngleSlider.onValueChanged.AddListener(val => { customAngle = val; SetVerticesDirty(); });
         if (hairThicknessSlider) hairThicknessSlider.onValueChanged.AddListener(val => { hairThickness = val; SetVerticesDirty(); });
         if (hairLengthSlider) hairLengthSlider.onValueChanged.AddListener(val => { hairLength = val; SetVerticesDirty(); });
-        if (hairsRotationSlider) hairsRotationSlider.onValueChanged.AddListener(val => { hairsRotation = val; SetVerticesDirty(); });
+        if (hairsRotationSlider) hairsRotationSlider.onValueChanged.AddListener(val => {
+            float value = hairsRotationSlider.value;
+            if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
+            hairsRotation = value;
+            if (SnapEnabled) hairsRotationSlider.value = value;
+            SetVerticesDirty();
+        });
         if (hairColorButton) hairColorButton.onClick.AddListener(() => PickColor(c => { hairColor = c; SetVerticesDirty(); }));
         if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { hairOpacity = val; SetVerticesDirty(); });
+        if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.onValueChanged.AddListener(val => { SetVerticesDirty(); });
+        if (hairDistanceSlider) hairDistanceSlider.onValueChanged.AddListener(val => { SetVerticesDirty(); });
 
         // --- Dot UI ---
         if (dotShapeDropdown) dotShapeDropdown.onValueChanged.AddListener(val => { dotShape = (CrosshairShape)val; SetVerticesDirty(); });
@@ -99,9 +116,44 @@ public class CrosshairRenderer : Graphic
         if (dotColorButton) dotColorButton.onClick.AddListener(() => PickColor(c => { dotColor = c; SetVerticesDirty(); }));
         if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { dotOpacity = val; SetVerticesDirty(); });
         if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { dotScale = val; SetVerticesDirty(); });
-        if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => { dotRotation = val; SetVerticesDirty(); });
+        if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => {
+            float value = dotRotationSlider.value;
+            if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
+            dotRotation = value;
+            if (SnapEnabled) dotRotationSlider.value = value;
+            SetVerticesDirty();
+        });
+
+        if (snapRotationToggle) snapRotationToggle.onValueChanged.AddListener(OnSnapToggleChanged);
 
         UpdateHairUI();
+    }
+
+    private void OnSnapToggleChanged(bool isOn)
+    {
+        // When toggled on, snap all current slider values
+        if (isOn)
+        {
+            if (frameRotationSlider)
+            {
+                float snapped = Mathf.Round(frameRotationSlider.value / 45f) * 45f;
+                frameRotationSlider.value = snapped;
+                frameRotation = snapped;
+            }
+            if (hairsRotationSlider)
+            {
+                float snapped = Mathf.Round(hairsRotationSlider.value / 45f) * 45f;
+                hairsRotationSlider.value = snapped;
+                hairsRotation = snapped;
+            }
+            if (dotRotationSlider)
+            {
+                float snapped = Mathf.Round(dotRotationSlider.value / 45f) * 45f;
+                dotRotationSlider.value = snapped;
+                dotRotation = snapped;
+            }
+            SetVerticesDirty();
+        }
     }
 
     void UpdateHairUI()
@@ -118,7 +170,7 @@ public class CrosshairRenderer : Graphic
         frameCol.a *= frameOpacity;
         float size = rectTransform.rect.width * 0.5f * frameScale;
         Vector2 center = rectTransform.rect.center;
-        float rotRad = frameRotation * Mathf.Deg2Rad;
+        float rotRad = -frameRotation * Mathf.Deg2Rad; // Invert for clockwise
         switch (frameShape)
         {
             case CrosshairShape.Circle:
@@ -143,18 +195,23 @@ public class CrosshairRenderer : Graphic
         float angleStep = 360f / count;
         float thickness = hairThickness;
         float length = hairLength * frameScale;
-        float baseRot = hairsRotation * Mathf.Deg2Rad;
+        float baseRot = -hairsRotation * Mathf.Deg2Rad; // Invert for clockwise
+        float hairDistance = hairDistanceSlider != null ? hairDistanceSlider.value : 0.2f; // Default to 0.2 if not set
         if (hairStyle == HairStyle.Custom)
         {
             angleStep = customAngle;
             count = Mathf.Max(1, Mathf.FloorToInt(360f / angleStep));
         }
+        float startRadius = size * hairDistance;
+        float endRadius = hairsExtendPastFrameToggle != null && hairsExtendPastFrameToggle.isOn
+            ? startRadius + length
+            : Mathf.Min(size * 0.9f, startRadius + length);
         for (int i = 0; i < count; i++)
         {
             float angle = baseRot + i * angleStep * Mathf.Deg2Rad;
             Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-            Vector2 start = center + dir * (size * 0.2f);
-            Vector2 end = center + dir * (size * 0.9f);
+            Vector2 start = center + dir * startRadius;
+            Vector2 end = center + dir * endRadius;
             DrawThickLine(vh, start, end, thickness, hairCol);
         }
     }
@@ -165,7 +222,7 @@ public class CrosshairRenderer : Graphic
         dotCol.a *= dotOpacity;
         float size = rectTransform.rect.width * 0.08f * dotScale;
         Vector2 center = rectTransform.rect.center;
-        float rotRad = dotRotation * Mathf.Deg2Rad;
+        float rotRad = -dotRotation * Mathf.Deg2Rad; // Invert for clockwise
         switch (dotShape)
         {
             case CrosshairShape.Circle:
@@ -303,9 +360,34 @@ public class CrosshairRenderer : Graphic
     }
 
     // --- Color Picker Placeholder ---
+    public Slider colorPickerSlider;
+    public Image colorPreviewImage;
+    private System.Action<Color> colorPickerCallback;
+
     void PickColor(System.Action<Color> onColorPicked)
     {
-        // Replace with your color picker dialog
-        onColorPicked?.Invoke(Color.white);
+        colorPickerCallback = onColorPicked;
+        colorPickerSlider.gameObject.SetActive(true);
+        colorPreviewImage.gameObject.SetActive(true);
+
+        // Optionally, set the slider to the current color's hue
+        colorPickerSlider.value = 0; // or set based on current color
+
+        colorPickerSlider.onValueChanged.RemoveAllListeners();
+        colorPickerSlider.onValueChanged.AddListener(OnColorSliderChanged);
+    }
+
+    void OnColorSliderChanged(float value)
+    {
+        // Map slider value [0,1] to a color (e.g., hue)
+        Color color = Color.HSVToRGB(value, 1f, 1f);
+        colorPreviewImage.color = color;
+        colorPickerCallback?.Invoke(color);
+    }
+
+    public void OnColorSliderReleased()
+    {
+        colorPickerSlider.gameObject.SetActive(false);
+        colorPreviewImage.gameObject.SetActive(false);
     }
 }
