@@ -1404,6 +1404,7 @@ MonoBehaviour:
   snapRotationToggle: {fileID: 2143972524}
   keybindRecordButton: {fileID: 107967523}
   uiRoot: {fileID: 1121874711}
+  uiVisible: 1
 --- !u!222 &147411965
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -7090,6 +7091,7 @@ RectTransform:
   - {fileID: 1138307595}
   - {fileID: 1332350294}
   - {fileID: 107967522}
+  - {fileID: 1533167613}
   m_Father: {fileID: 1806386827}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -9552,11 +9554,11 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 79232417}
-  m_Father: {fileID: 1806386827}
+  m_Father: {fileID: 1121874712}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: -0.119999886}
   m_SizeDelta: {x: 24, y: 24}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &1533167614
@@ -10564,7 +10566,6 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 147411963}
-  - {fileID: 1533167613}
   - {fileID: 1121874712}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

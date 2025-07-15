@@ -66,6 +66,9 @@ public class TransparentWindow : MonoBehaviour
 	[DllImport("Dwmapi.dll")]
 	static extern uint DwmExtendFrameIntoClientArea(IntPtr hWnd, ref Rectangle margins);
 
+    [DllImport("VirtualDesktopAccessor.dll")]
+    public static extern void PinWindow(System.IntPtr hwnd);
+
 	const int GWL_STYLE = -16;
 	const uint WS_POPUP = 0x80000000;
 	const uint WS_VISIBLE = 0x10000000;
@@ -107,6 +110,14 @@ public class TransparentWindow : MonoBehaviour
 		SetWindowLong(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
 		SetWindowPos(hwnd, HWND_TOPMOST, windowRect.Left, windowRect.Top, fWidth, fHeight, 32 | 64);
 		DwmExtendFrameIntoClientArea(hwnd, ref margins);
+
+        // Pin the overlay window to all virtual desktops
+        try {
+            PinWindow(hwnd);
+            Debug.Log("Overlay window pinned to all virtual desktops.");
+        } catch (System.Exception ex) {
+            Debug.LogWarning("Failed to pin overlay window: " + ex.Message);
+        }
 #endif
 	}
 
