@@ -48,6 +48,7 @@ public class CrosshairRenderer : Graphic
     public Slider frameColorSlider; // always-visible color slider
     public GameObject frameColorPreviewObj; // preview GameObject with sprite
     private UnityEngine.UI.Image frameColorPreviewImg; // cached Image component
+    public UnityEngine.UI.Button hideCrosshairButton;
 
     [Header("Hairs UI")]
     public TMP_Dropdown hairStyleDropdown;
@@ -181,6 +182,9 @@ public class CrosshairRenderer : Graphic
         if (keybindRecordButton) keybindRecordButton.onClick.AddListener(StartKeybindRecording);
 
         UpdateHairUI();
+
+        if (hideCrosshairButton) hideCrosshairButton.onClick.AddListener(ToggleCrosshair);
+        UpdateHideCrosshairButtonText();
     }
 
     void Update()
@@ -582,4 +586,21 @@ public class CrosshairRenderer : Graphic
 
     // --- Color Picker Placeholder ---
     // (Removed old color picker logic)
+
+    public void ToggleCrosshair()
+    {
+        enabled = !enabled;
+        if (enabled) SetVerticesDirty();
+        UpdateHideCrosshairButtonText();
+    }
+
+    private void UpdateHideCrosshairButtonText()
+    {
+        if (hideCrosshairButton)
+        {
+            var text = hideCrosshairButton.GetComponentInChildren<TMPro.TMP_Text>();
+            if (text)
+                text.text = enabled ? "Hide Crosshair" : "Show Crosshair";
+        }
+    }
 }
