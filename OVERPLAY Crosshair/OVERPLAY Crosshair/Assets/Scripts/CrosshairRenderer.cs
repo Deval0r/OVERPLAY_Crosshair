@@ -17,6 +17,7 @@ public class CrosshairRenderer : Graphic
     [Range(0, 1)] public float frameOpacity = 1f;
     public float frameScale = 1f;
     [Range(0, 360)] public float frameRotation = 0f;
+    public float frameThickness = 2f;
 
     // Hairs
     public HairStyle hairStyle = HairStyle.Even;
@@ -43,6 +44,7 @@ public class CrosshairRenderer : Graphic
     public Slider frameOpacitySlider;
     public Slider frameScaleSlider;
     public Slider frameRotationSlider;
+    public Slider frameThicknessSlider;
     public Slider frameColorSlider; // always-visible color slider
     public GameObject frameColorPreviewObj; // preview GameObject with sprite
     private UnityEngine.UI.Image frameColorPreviewImg; // cached Image component
@@ -120,6 +122,7 @@ public class CrosshairRenderer : Graphic
             if (SnapEnabled) frameRotationSlider.value = value;
             SetVerticesDirty();
         });
+        if (frameThicknessSlider) frameThicknessSlider.onValueChanged.AddListener(val => { frameThickness = val; SetVerticesDirty(); });
         if (frameColorSlider) {
             frameColorSlider.onValueChanged.AddListener(val => {
                 frameColor = Color.HSVToRGB(val, 1f, 1f);
@@ -409,7 +412,7 @@ public class CrosshairRenderer : Graphic
                 Vector2 pos = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
                 vh.AddVert(pos, color, Vector2.zero);
             }
-            float thickness = 2f; // outline thickness
+            float thickness = frameThickness;
             for (int i = 0; i < segments; i++)
             {
                 float angleA = rotation + 2 * Mathf.PI * i / segments;
@@ -445,7 +448,7 @@ public class CrosshairRenderer : Graphic
         }
         else
         {
-            float thickness = 2f;
+            float thickness = frameThickness;
             for (int i = 0; i < 4; i++)
                 DrawThickLine(vh, corners[i], corners[(i + 1) % 4], thickness, color);
         }
@@ -472,7 +475,7 @@ public class CrosshairRenderer : Graphic
         }
         else
         {
-            float thickness = 2f;
+            float thickness = frameThickness;
             for (int i = 0; i < 3; i++)
                 DrawThickLine(vh, pts[i], pts[(i + 1) % 3], thickness, color);
         }
