@@ -1747,7 +1747,7 @@ MonoBehaviour:
   useSystemInput: 1
   fullscreen: 1
   customResolution: 0
-  screenResolution: {x: 720, y: 720}
+  screenResolution: {x: 1920, y: 1080}
   targetFrameRate: 30
   minFocusDistance: 0.1
 --- !u!81 &198770951

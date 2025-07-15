@@ -83,7 +83,8 @@ public class CrosshairRenderer : Graphic
     private bool recordingKeybind = false;
     private HashSet<KeyCode> pressedKeys = new HashSet<KeyCode>();
     private List<KeyCode> lastPressedKeys = new List<KeyCode>();
-    private bool uiVisible = true;
+    [HideInInspector]
+    public bool uiVisible = true;
     private float keybindReleaseTimer = 0f;
     private float keybindReleaseGrace = 0.3f; // seconds
     private bool keybindWasHeld = false;

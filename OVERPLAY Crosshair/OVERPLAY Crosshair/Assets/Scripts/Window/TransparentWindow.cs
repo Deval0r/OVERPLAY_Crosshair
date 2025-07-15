@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Debug = UnityEngine.Debug;
+using System.Linq;
 
 [RequireComponent(typeof(Camera))]
 public class TransparentWindow : MonoBehaviour
@@ -88,11 +89,8 @@ public class TransparentWindow : MonoBehaviour
 		Camera.backgroundColor = new Color();
 		Camera.clearFlags = CameraClearFlags.SolidColor;
 
-		if (fullscreen && !customResolution)
-		{
-			screenResolution = new Vector2Int(Screen.currentResolution.width, Screen.currentResolution.height);
-		}
-		
+		// Always match the current screen resolution, and add a small buffer to cover edges
+		screenResolution = new Vector2Int(Screen.currentResolution.width + 2, Screen.currentResolution.height + 2);
 		Screen.SetResolution(screenResolution.x, screenResolution.y, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
 
 		Application.targetFrameRate = targetFrameRate;
@@ -131,11 +129,27 @@ public class TransparentWindow : MonoBehaviour
         {
             SystemInput.LateUpdateKeys();
         }
+
+		// Dynamically update overlay size if screen resolution changes
+		Vector2Int targetRes = new Vector2Int(Screen.currentResolution.width + 2, Screen.currentResolution.height + 2);
+		if (screenResolution != targetRes)
+		{
+			screenResolution = targetRes;
+			Screen.SetResolution(screenResolution.x, screenResolution.y, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+		}
 	}
 
 	//Returns true if the cursor is over a UI element or 2D physics object
 	bool FocusForInput()
 	{
+		int edgeMargin = 2; // pixels
+		Vector2 mousePos = Input.mousePosition;
+		if (mousePos.x <= edgeMargin || mousePos.x >= Screen.width - edgeMargin ||
+			mousePos.y <= edgeMargin || mousePos.y >= Screen.height - edgeMargin)
+		{
+			// Mouse is at the edge, do not allow focus/clicks
+			return false;
+		}
 		EventSystem eventSystem = EventSystem.current;
 		if (eventSystem && eventSystem.IsPointerOverGameObject())
 		{
@@ -156,6 +170,19 @@ public class TransparentWindow : MonoBehaviour
 
 	void SetClickThrough()
 	{
+		// If the UI is hidden, always enable clickthrough (non-interactive overlay)
+		var crosshairRenderer = FindObjectsOfType<CrosshairRenderer>().FirstOrDefault();
+		if (crosshairRenderer != null && !crosshairRenderer.uiVisible)
+		{
+#if !UNITY_EDITOR
+			SetWindowLong(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+			SetWindowLong(hwnd, -20, (uint)524288 | (uint)32);
+			SetLayeredWindowAttributes(hwnd, 0, 255, 2);
+			SetWindowPos(hwnd, HWND_TOPMOST, windowRect.Left, windowRect.Top, fWidth, fHeight, 32 | 64);
+#endif
+			return;
+		}
+
 		var focusWindow = FocusForInput();
 
 		//Get window position
