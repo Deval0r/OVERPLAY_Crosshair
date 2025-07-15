@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections.Generic;
 
 public enum CrosshairShape { Circle, Square, Triangle }
 public enum HairStyle { Even, Custom }
@@ -42,7 +43,9 @@ public class CrosshairRenderer : Graphic
     public Slider frameOpacitySlider;
     public Slider frameScaleSlider;
     public Slider frameRotationSlider;
-    public Button frameColorButton;
+    public Slider frameColorSlider; // always-visible color slider
+    public GameObject frameColorPreviewObj; // preview GameObject with sprite
+    private UnityEngine.UI.Image frameColorPreviewImg; // cached Image component
 
     [Header("Hairs UI")]
     public TMP_Dropdown hairStyleDropdown;
@@ -51,7 +54,9 @@ public class CrosshairRenderer : Graphic
     public Slider hairThicknessSlider;
     public Slider hairLengthSlider;
     public Slider hairsRotationSlider;
-    public Button hairColorButton;
+    public Slider hairColorSlider; // always-visible color slider
+    public GameObject hairColorPreviewObj; // preview GameObject with sprite
+    private UnityEngine.UI.Image hairColorPreviewImg; // cached Image component
     public Slider hairOpacitySlider;
     public Toggle hairsExtendPastFrameToggle;
     public Slider hairDistanceSlider;
@@ -59,7 +64,9 @@ public class CrosshairRenderer : Graphic
     [Header("Dot UI")]
     public TMP_Dropdown dotShapeDropdown;
     public Toggle dotFilledToggle;
-    public Button dotColorButton;
+    public Slider dotColorSlider; // always-visible color slider
+    public GameObject dotColorPreviewObj; // preview GameObject with sprite
+    private UnityEngine.UI.Image dotColorPreviewImg; // cached Image component
     public Slider dotOpacitySlider;
     public Slider dotScaleSlider;
     public Slider dotRotationSlider;
@@ -67,6 +74,15 @@ public class CrosshairRenderer : Graphic
     [Header("Snapping")]
     public Toggle snapRotationToggle;
     private bool SnapEnabled => snapRotationToggle != null && snapRotationToggle.isOn;
+
+    [Header("Keybinds")]
+    public UnityEngine.UI.Button keybindRecordButton;
+    public GameObject uiRoot; // Assign your UI root GameObject here
+
+    private List<KeyCode> currentKeybind = new List<KeyCode> { KeyCode.F2 }; // Default: F2 (Fn+F2 is hardware, so use F2)
+    private bool recordingKeybind = false;
+    private HashSet<KeyCode> pressedKeys = new HashSet<KeyCode>();
+    private bool uiVisible = true;
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {
@@ -76,8 +92,17 @@ public class CrosshairRenderer : Graphic
         DrawDot(vh);
     }
 
-    void Start()
+    new void Awake()
     {
+        raycastTarget = false;
+    }
+
+    new void Start()
+    {
+        // Cache Image components from preview GameObjects
+        if (frameColorPreviewObj) frameColorPreviewImg = frameColorPreviewObj.GetComponent<UnityEngine.UI.Image>();
+        if (hairColorPreviewObj) hairColorPreviewImg = hairColorPreviewObj.GetComponent<UnityEngine.UI.Image>();
+        if (dotColorPreviewObj) dotColorPreviewImg = dotColorPreviewObj.GetComponent<UnityEngine.UI.Image>();
         // --- Frame UI ---
         if (frameShapeDropdown) frameShapeDropdown.onValueChanged.AddListener(val => { frameShape = (CrosshairShape)val; SetVerticesDirty(); });
         if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { frameFilled = val; SetVerticesDirty(); });
@@ -90,7 +115,13 @@ public class CrosshairRenderer : Graphic
             if (SnapEnabled) frameRotationSlider.value = value;
             SetVerticesDirty();
         });
-        if (frameColorButton) frameColorButton.onClick.AddListener(() => PickColor(c => { frameColor = c; SetVerticesDirty(); }));
+        if (frameColorSlider) {
+            frameColorSlider.onValueChanged.AddListener(val => {
+                frameColor = Color.HSVToRGB(val, 1f, 1f);
+                SetVerticesDirty();
+                ShowColorPreview(frameColorPreviewObj, frameColorPreviewImg, frameColor, PreviewType.Frame);
+            });
+        }
 
         // --- Hairs UI ---
         if (hairStyleDropdown) hairStyleDropdown.onValueChanged.AddListener(val => { hairStyle = (HairStyle)val; SetVerticesDirty(); UpdateHairUI(); });
@@ -105,7 +136,13 @@ public class CrosshairRenderer : Graphic
             if (SnapEnabled) hairsRotationSlider.value = value;
             SetVerticesDirty();
         });
-        if (hairColorButton) hairColorButton.onClick.AddListener(() => PickColor(c => { hairColor = c; SetVerticesDirty(); }));
+        if (hairColorSlider) {
+            hairColorSlider.onValueChanged.AddListener(val => {
+                hairColor = Color.HSVToRGB(val, 1f, 1f);
+                SetVerticesDirty();
+                ShowColorPreview(hairColorPreviewObj, hairColorPreviewImg, hairColor, PreviewType.Hair);
+            });
+        }
         if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { hairOpacity = val; SetVerticesDirty(); });
         if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.onValueChanged.AddListener(val => { SetVerticesDirty(); });
         if (hairDistanceSlider) hairDistanceSlider.onValueChanged.AddListener(val => { SetVerticesDirty(); });
@@ -113,7 +150,13 @@ public class CrosshairRenderer : Graphic
         // --- Dot UI ---
         if (dotShapeDropdown) dotShapeDropdown.onValueChanged.AddListener(val => { dotShape = (CrosshairShape)val; SetVerticesDirty(); });
         if (dotFilledToggle) dotFilledToggle.onValueChanged.AddListener(val => { dotFilled = val; SetVerticesDirty(); });
-        if (dotColorButton) dotColorButton.onClick.AddListener(() => PickColor(c => { dotColor = c; SetVerticesDirty(); }));
+        if (dotColorSlider) {
+            dotColorSlider.onValueChanged.AddListener(val => {
+                dotColor = Color.HSVToRGB(val, 1f, 1f);
+                SetVerticesDirty();
+                ShowColorPreview(dotColorPreviewObj, dotColorPreviewImg, dotColor, PreviewType.Dot);
+            });
+        }
         if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { dotOpacity = val; SetVerticesDirty(); });
         if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { dotScale = val; SetVerticesDirty(); });
         if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => {
@@ -126,7 +169,79 @@ public class CrosshairRenderer : Graphic
 
         if (snapRotationToggle) snapRotationToggle.onValueChanged.AddListener(OnSnapToggleChanged);
 
+        // Keybind record button
+        if (keybindRecordButton) keybindRecordButton.onClick.AddListener(StartKeybindRecording);
+
         UpdateHairUI();
+    }
+
+    void Update()
+    {
+        if (recordingKeybind)
+        {
+            // Record all currently pressed keys
+            foreach (KeyCode key in System.Enum.GetValues(typeof(KeyCode)))
+            {
+                if (Input.GetKeyDown(key))
+                    pressedKeys.Add(key);
+                if (Input.GetKeyUp(key))
+                    pressedKeys.Remove(key);
+            }
+            // If no keys are pressed, finish recording
+            if (pressedKeys.Count == 0 && currentKeybind.Count > 0)
+            {
+                recordingKeybind = false;
+                if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(currentKeybind);
+            }
+            else if (pressedKeys.Count > 0)
+            {
+                currentKeybind = new List<KeyCode>(pressedKeys);
+                if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(currentKeybind);
+            }
+        }
+        else
+        {
+            // Check for keybind to toggle UI
+            if (IsKeybindPressed())
+            {
+                ToggleUI();
+            }
+        }
+    }
+
+    void StartKeybindRecording()
+    {
+        recordingKeybind = true;
+        pressedKeys.Clear();
+        currentKeybind.Clear();
+        if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = "Press keys...";
+    }
+
+    bool IsKeybindPressed()
+    {
+        if (currentKeybind.Count == 0) return false;
+        foreach (var key in currentKeybind)
+        {
+            if (!Input.GetKey(key)) return false;
+        }
+        // Only trigger on key down
+        foreach (var key in currentKeybind)
+        {
+            if (Input.GetKeyDown(key)) return true;
+        }
+        return false;
+    }
+
+    void ToggleUI()
+    {
+        uiVisible = !uiVisible;
+        if (uiRoot) uiRoot.SetActive(uiVisible);
+    }
+
+    string KeybindToString(List<KeyCode> keys)
+    {
+        if (keys == null || keys.Count == 0) return "Set Keybind";
+        return string.Join(" + ", keys);
     }
 
     private void OnSnapToggleChanged(bool isOn)
@@ -359,35 +474,60 @@ public class CrosshairRenderer : Graphic
         vh.AddTriangle(idx, idx + 2, idx + 3);
     }
 
+    // --- Color Preview Fade Logic ---
+    private Coroutine framePreviewFadeCoroutine;
+    private Coroutine hairPreviewFadeCoroutine;
+    private Coroutine dotPreviewFadeCoroutine;
+    private float previewFadeDelay = 1.0f; // seconds before fade starts
+    private float previewFadeDuration = 0.5f; // fade out duration
+
+    private enum PreviewType { Frame, Hair, Dot }
+
+    void ShowColorPreview(GameObject previewObj, UnityEngine.UI.Image previewImg, Color color, PreviewType type)
+    {
+        if (previewObj == null || previewImg == null) return;
+        previewImg.color = new Color(color.r, color.g, color.b, 1f);
+        previewObj.SetActive(true);
+        // Start fade coroutine
+        switch (type) {
+            case PreviewType.Frame:
+                if (framePreviewFadeCoroutine != null) StopCoroutine(framePreviewFadeCoroutine);
+                framePreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewImg, PreviewType.Frame));
+                break;
+            case PreviewType.Hair:
+                if (hairPreviewFadeCoroutine != null) StopCoroutine(hairPreviewFadeCoroutine);
+                hairPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewImg, PreviewType.Hair));
+                break;
+            case PreviewType.Dot:
+                if (dotPreviewFadeCoroutine != null) StopCoroutine(dotPreviewFadeCoroutine);
+                dotPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewImg, PreviewType.Dot));
+                break;
+        }
+    }
+
+    System.Collections.IEnumerator FadeOutPreview(GameObject previewObj, UnityEngine.UI.Image previewImg, PreviewType type)
+    {
+        yield return new WaitForSeconds(previewFadeDelay);
+        float t = 0f;
+        Color startColor = previewImg.color;
+        while (t < previewFadeDuration)
+        {
+            t += Time.deltaTime;
+            float alpha = Mathf.Lerp(1f, 0f, t / previewFadeDuration);
+            previewImg.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
+            yield return null;
+        }
+        previewObj.SetActive(false);
+        // Reset alpha for next time
+        previewImg.color = new Color(startColor.r, startColor.g, startColor.b, 1f);
+        // Null out coroutine reference
+        switch (type) {
+            case PreviewType.Frame: framePreviewFadeCoroutine = null; break;
+            case PreviewType.Hair: hairPreviewFadeCoroutine = null; break;
+            case PreviewType.Dot: dotPreviewFadeCoroutine = null; break;
+        }
+    }
+
     // --- Color Picker Placeholder ---
-    public Slider colorPickerSlider;
-    public Image colorPreviewImage;
-    private System.Action<Color> colorPickerCallback;
-
-    void PickColor(System.Action<Color> onColorPicked)
-    {
-        colorPickerCallback = onColorPicked;
-        colorPickerSlider.gameObject.SetActive(true);
-        colorPreviewImage.gameObject.SetActive(true);
-
-        // Optionally, set the slider to the current color's hue
-        colorPickerSlider.value = 0; // or set based on current color
-
-        colorPickerSlider.onValueChanged.RemoveAllListeners();
-        colorPickerSlider.onValueChanged.AddListener(OnColorSliderChanged);
-    }
-
-    void OnColorSliderChanged(float value)
-    {
-        // Map slider value [0,1] to a color (e.g., hue)
-        Color color = Color.HSVToRGB(value, 1f, 1f);
-        colorPreviewImage.color = color;
-        colorPickerCallback?.Invoke(color);
-    }
-
-    public void OnColorSliderReleased()
-    {
-        colorPickerSlider.gameObject.SetActive(false);
-        colorPreviewImage.gameObject.SetActive(false);
-    }
+    // (Removed old color picker logic)
 }
