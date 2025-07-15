@@ -139,42 +139,68 @@ public class SystemInput
 	}
 
 	//TODO: Keyboard Input stuff
-	public static bool GetKey(KeyCode key)
-	{
-		if (VK_KeyCodes.TryGetValue(key, out var value))
-		{
-			return GetAsyncKeyState(value) == BUTTONDOWN;
-		}
+    // Map Unity KeyCode to Virtual-Key codes (partial, extend as needed)
+    public static Dictionary<KeyCode, int> VK_KeyCodes = new Dictionary<KeyCode, int>()
+    {
+        // Letters
+        {KeyCode.A, 0x41}, {KeyCode.B, 0x42}, {KeyCode.C, 0x43}, {KeyCode.D, 0x44}, {KeyCode.E, 0x45}, {KeyCode.F, 0x46}, {KeyCode.G, 0x47}, {KeyCode.H, 0x48}, {KeyCode.I, 0x49}, {KeyCode.J, 0x4A}, {KeyCode.K, 0x4B}, {KeyCode.L, 0x4C}, {KeyCode.M, 0x4D}, {KeyCode.N, 0x4E}, {KeyCode.O, 0x4F}, {KeyCode.P, 0x50}, {KeyCode.Q, 0x51}, {KeyCode.R, 0x52}, {KeyCode.S, 0x53}, {KeyCode.T, 0x54}, {KeyCode.U, 0x55}, {KeyCode.V, 0x56}, {KeyCode.W, 0x57}, {KeyCode.X, 0x58}, {KeyCode.Y, 0x59}, {KeyCode.Z, 0x5A},
+        // Numbers
+        {KeyCode.Alpha0, 0x30}, {KeyCode.Alpha1, 0x31}, {KeyCode.Alpha2, 0x32}, {KeyCode.Alpha3, 0x33}, {KeyCode.Alpha4, 0x34}, {KeyCode.Alpha5, 0x35}, {KeyCode.Alpha6, 0x36}, {KeyCode.Alpha7, 0x37}, {KeyCode.Alpha8, 0x38}, {KeyCode.Alpha9, 0x39},
+        // Function keys
+        {KeyCode.F1, 0x70}, {KeyCode.F2, 0x71}, {KeyCode.F3, 0x72}, {KeyCode.F4, 0x73}, {KeyCode.F5, 0x74}, {KeyCode.F6, 0x75}, {KeyCode.F7, 0x76}, {KeyCode.F8, 0x77}, {KeyCode.F9, 0x78}, {KeyCode.F10, 0x79}, {KeyCode.F11, 0x7A}, {KeyCode.F12, 0x7B},
+        // Modifiers
+        {KeyCode.LeftShift, 0xA0}, {KeyCode.RightShift, 0xA1}, {KeyCode.LeftControl, 0xA2}, {KeyCode.RightControl, 0xA3}, {KeyCode.LeftAlt, 0xA4}, {KeyCode.RightAlt, 0xA5},
+        // Space, Enter, Escape, Tab
+        {KeyCode.Space, 0x20}, {KeyCode.Return, 0x0D}, {KeyCode.Escape, 0x1B}, {KeyCode.Tab, 0x09},
+        // Arrow keys
+        {KeyCode.UpArrow, 0x26}, {KeyCode.DownArrow, 0x28}, {KeyCode.LeftArrow, 0x25}, {KeyCode.RightArrow, 0x27},
+        // Keypad
+        {KeyCode.Keypad0, 0x60}, {KeyCode.Keypad1, 0x61}, {KeyCode.Keypad2, 0x62}, {KeyCode.Keypad3, 0x63}, {KeyCode.Keypad4, 0x64}, {KeyCode.Keypad5, 0x65}, {KeyCode.Keypad6, 0x66}, {KeyCode.Keypad7, 0x67}, {KeyCode.Keypad8, 0x68}, {KeyCode.Keypad9, 0x69},
+        // Others (add more as needed)
+    };
 
-		return false;
-	}
-	
-	static bool KeyCodePressed(int value)
-	{
-		return GetAsyncKeyState(value) == BUTTONDOWN;
-	}
+    static Dictionary<KeyCode, bool> lastKeyState = new Dictionary<KeyCode, bool>();
+    static Dictionary<KeyCode, bool> currentKeyState = new Dictionary<KeyCode, bool>();
 
-	//Is there an easier way than just adding each key combo manually?
-	static Dictionary<KeyCode, int> VK_KeyCodes = new Dictionary<KeyCode, int>()
-	{
-		{KeyCode.Keypad8, 0x68},
-		{KeyCode.Keypad4, 0x64},
-		{KeyCode.Keypad6, 0x66},
-		{KeyCode.Keypad2, 0x62},
-	};
-	
-	static Dictionary<KeyCode, KeyState> KeyStates = new Dictionary<KeyCode, KeyState>();
-	public struct KeyState
-	{
-		public KeyCode KeyCode;
-		public KeyPressType KeyPressType;
-	}
+    // Call this every frame (from TransparentWindow.Update or similar)
+    public static void UpdateKeys()
+    {
+        foreach (var pair in VK_KeyCodes)
+        {
+            bool isDown = (GetAsyncKeyState(pair.Value) & 0x8000) != 0;
+            currentKeyState[pair.Key] = isDown;
+        }
+    }
 
-	public enum KeyPressType
-	{
-		None,
-		Down,
-		Hold,
-		Up,
-	}
+    public static bool GetKey(KeyCode key)
+    {
+        if (currentKeyState.TryGetValue(key, out var isDown))
+            return isDown;
+        return false;
+    }
+
+    public static bool GetKeyDown(KeyCode key)
+    {
+        bool last = false, now = false;
+        lastKeyState.TryGetValue(key, out last);
+        currentKeyState.TryGetValue(key, out now);
+        return now && !last;
+    }
+
+    public static bool GetKeyUp(KeyCode key)
+    {
+        bool last = false, now = false;
+        lastKeyState.TryGetValue(key, out last);
+        currentKeyState.TryGetValue(key, out now);
+        return !now && last;
+    }
+
+    // Call this at the end of each frame
+    public static void LateUpdateKeys()
+    {
+        foreach (var pair in currentKeyState)
+        {
+            lastKeyState[pair.Key] = pair.Value;
+        }
+    }
 }

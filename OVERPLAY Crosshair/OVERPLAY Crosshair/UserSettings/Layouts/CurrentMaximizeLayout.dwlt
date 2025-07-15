@@ -24,7 +24,7 @@ MonoBehaviour:
   m_MinSize: {x: 400, y: 100}
   m_MaxSize: {x: 32384, y: 16192}
   vertical: 0
-  controlID: 6500
+  controlID: 10730
   draggingID: 0
 --- !u!114 &2
 MonoBehaviour:
@@ -154,7 +154,7 @@ MonoBehaviour:
   m_MinSize: {x: 300, y: 100}
   m_MaxSize: {x: 24288, y: 16192}
   vertical: 1
-  controlID: 6501
+  controlID: 10731
   draggingID: 0
 --- !u!114 &4
 MonoBehaviour:
@@ -181,7 +181,7 @@ MonoBehaviour:
   m_MinSize: {x: 300, y: 50}
   m_MaxSize: {x: 24288, y: 8096}
   vertical: 0
-  controlID: 6502
+  controlID: 10732
   draggingID: 0
 --- !u!114 &5
 MonoBehaviour:
@@ -248,10 +248,10 @@ MonoBehaviour:
     m_OverlaysVisible: 1
   m_SceneHierarchy:
     m_TreeViewState:
-      scrollPos: {x: 0, y: 219}
-      m_SelectedIDs: 3ca30000
-      m_LastClickedID: 41788
-      m_ExpandedIDs: b8acffff9ab1fffffcb4ffff32b5ffff50b6ffff20e7ffff56e7ffff7ae8ffff32f7ffff0efbffff3e690000bc6a0000926c0000dc8000007ea60000
+      scrollPos: {x: 0, y: 0}
+      m_SelectedIDs: ac1b0100
+      m_LastClickedID: 0
+      m_ExpandedIDs: e08effff168fffff3890ffffeaa0ffff20a1ffff10a2ffff7aa5ffffb0a5ffffd0a6ffffb8acffff9ab1fffffcb4ffff32b5ffff50b6ffff20e7ffff56e7ffff7ae8ffff32f7ffff0efbffff3e690000bc6a0000926c0000dc8000007ea60000d6bd000020030100
       m_RenameOverlay:
         m_UserAcceptedRename: 0
         m_Name: 
@@ -871,7 +871,7 @@ MonoBehaviour:
       sizeOverridden: 0
     m_ContainerData:
     - containerId: overlay-toolbar__top
-      scrollOffset: 44.666687
+      scrollOffset: 0
     - containerId: overlay-toolbar__left
       scrollOffset: 0
     - containerId: overlay-container--left
@@ -896,9 +896,9 @@ MonoBehaviour:
   m_AudioPlay: 0
   m_DebugDrawModesUseInteractiveLightBakingData: 0
   m_Position:
-    m_Target: {x: 1.3123431, y: -6.2672086, z: -0.13180576}
+    m_Target: {x: 0.007881053, y: 1.6237013, z: -0.04743598}
     speed: 2
-    m_Value: {x: 1.3123431, y: -6.2672086, z: -0.13180576}
+    m_Value: {x: 0.007881053, y: 1.6237013, z: -0.04743598}
   m_RenderMode: 0
   m_CameraMode:
     drawMode: 0
@@ -948,9 +948,9 @@ MonoBehaviour:
     speed: 2
     m_Value: {x: 0, y: 0, z: 0, w: 1}
   m_Size:
-    m_Target: 14.018836
+    m_Target: 5.581865
     speed: 2
-    m_Value: 14.018836
+    m_Value: 5.581865
   m_Ortho:
     m_Target: 1
     speed: 2
@@ -1196,7 +1196,7 @@ MonoBehaviour:
     m_SkipHidden: 0
     m_SearchArea: 1
     m_Folders:
-    - Assets/Scripts
+    - Assets/Scripts/Window
     m_Globs: []
     m_ProductIds: 
     m_AnyWithAssetOrigin: 0
@@ -1206,7 +1206,7 @@ MonoBehaviour:
   m_ViewMode: 1
   m_StartGridSize: 96
   m_LastFolders:
-  - Assets/Scripts
+  - Assets/Scripts/Window
   m_LastFoldersGridSize: 96
   m_LastProjectPath: C:\Users\jjpen\OneDrive\Documents\GitHub\OVERPLAY-Crosshair\OVERPLAY
     Crosshair\OVERPLAY Crosshair
@@ -1214,9 +1214,9 @@ MonoBehaviour:
     m_IsLocked: 0
   m_FolderTreeState:
     scrollPos: {x: 0, y: 0}
-    m_SelectedIDs: 146e0000
-    m_LastClickedID: 28180
-    m_ExpandedIDs: 00000000b26d000000ca9a3bffffff7f
+    m_SelectedIDs: 70900000
+    m_LastClickedID: 36976
+    m_ExpandedIDs: 00000000b26d0000146e000000ca9a3bffffff7f
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1271,8 +1271,8 @@ MonoBehaviour:
       m_Icon: {fileID: 0}
       m_ResourceFile: 
   m_ListAreaState:
-    m_SelectedInstanceIDs: 6e7d0000
-    m_LastClickedInstanceID: 32110
+    m_SelectedInstanceIDs: ac1b0100
+    m_LastClickedInstanceID: 72620
     m_HadKeyboardFocusLastEvent: 0
     m_ExpandedInstanceIDs: c6230000000000006ac7000050c7000064f3000068f300006cf300005cf3000060f300004eaa00005a560100b05c010060bd000050f90000c60100000cb000003cc0000086c00000a4b60000
     m_RenameOverlay:
@@ -1410,7 +1410,7 @@ MonoBehaviour:
     m_ControlHash: -371814159
     m_PrefName: Preview_InspectorPreview
   m_LastInspectedObjectInstanceID: -1
-  m_LastVerticalScrollValue: 1180.6667
+  m_LastVerticalScrollValue: 0
   m_GlobalObjectId: 
   m_InspectorMode: 0
   m_LockTracker:

@@ -114,12 +114,23 @@ public class TransparentWindow : MonoBehaviour
 
 	void Update()
 	{
+        // Update global key states for keyboard
+        if (useSystemInput)
+        {
+            SystemInput.UpdateKeys();
+        }
 		if (useSystemInput)
 		{
 			SystemInput.Process();
 		}
 
 		SetClickThrough();
+
+        // Late update key states
+        if (useSystemInput)
+        {
+            SystemInput.LateUpdateKeys();
+        }
 	}
 
 	//Returns true if the cursor is over a UI element or 2D physics object

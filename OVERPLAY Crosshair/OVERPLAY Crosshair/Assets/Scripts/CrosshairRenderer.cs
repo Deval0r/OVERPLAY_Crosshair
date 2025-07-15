@@ -82,7 +82,11 @@ public class CrosshairRenderer : Graphic
     private List<KeyCode> currentKeybind = new List<KeyCode> { KeyCode.F2 }; // Default: F2 (Fn+F2 is hardware, so use F2)
     private bool recordingKeybind = false;
     private HashSet<KeyCode> pressedKeys = new HashSet<KeyCode>();
+    private List<KeyCode> lastPressedKeys = new List<KeyCode>();
     private bool uiVisible = true;
+    private float keybindReleaseTimer = 0f;
+    private float keybindReleaseGrace = 0.3f; // seconds
+    private bool keybindWasHeld = false;
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {
@@ -179,32 +183,57 @@ public class CrosshairRenderer : Graphic
     {
         if (recordingKeybind)
         {
-            // Record all currently pressed keys
-            foreach (KeyCode key in System.Enum.GetValues(typeof(KeyCode)))
+            // Only check keys supported by SystemInput, but use Unity Input for recording
+            foreach (var key in SystemInput.VK_KeyCodes.Keys)
             {
                 if (Input.GetKeyDown(key))
                     pressedKeys.Add(key);
                 if (Input.GetKeyUp(key))
                     pressedKeys.Remove(key);
             }
-            // If no keys are pressed, finish recording
-            if (pressedKeys.Count == 0 && currentKeybind.Count > 0)
+            // Track the last non-empty set of pressed keys
+            if (pressedKeys.Count > 0)
             {
-                recordingKeybind = false;
-                if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(currentKeybind);
+                lastPressedKeys = new List<KeyCode>(pressedKeys);
+                keybindReleaseTimer = 0f;
+                if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(lastPressedKeys);
+            }
+            // If no keys are pressed, start grace timer
+            if (pressedKeys.Count == 0 && lastPressedKeys.Count > 0)
+            {
+                keybindReleaseTimer += Time.unscaledDeltaTime;
+                if (keybindReleaseTimer >= keybindReleaseGrace)
+                {
+                    currentKeybind = new List<KeyCode>(lastPressedKeys);
+                    recordingKeybind = false;
+                    if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(currentKeybind);
+                }
             }
             else if (pressedKeys.Count > 0)
             {
-                currentKeybind = new List<KeyCode>(pressedKeys);
-                if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(currentKeybind);
+                keybindReleaseTimer = 0f;
             }
         }
         else
         {
-            // Check for keybind to toggle UI
-            if (IsKeybindPressed())
+            // Manual cooldown-based keybind detection
+            bool allHeld = currentKeybind.Count > 0;
+            foreach (var k in currentKeybind)
             {
-                ToggleUI();
+                if (!SystemInput.GetKey(k)) allHeld = false;
+            }
+            if (allHeld)
+            {
+                if (!keybindWasHeld)
+                {
+                    Debug.Log("Keybind held, toggling UI: " + KeybindToString(currentKeybind));
+                    ToggleUI();
+                    keybindWasHeld = true;
+                }
+            }
+            else
+            {
+                keybindWasHeld = false;
             }
         }
     }
@@ -214,22 +243,9 @@ public class CrosshairRenderer : Graphic
         recordingKeybind = true;
         pressedKeys.Clear();
         currentKeybind.Clear();
+        lastPressedKeys.Clear();
+        keybindReleaseTimer = 0f;
         if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = "Press keys...";
-    }
-
-    bool IsKeybindPressed()
-    {
-        if (currentKeybind.Count == 0) return false;
-        foreach (var key in currentKeybind)
-        {
-            if (!Input.GetKey(key)) return false;
-        }
-        // Only trigger on key down
-        foreach (var key in currentKeybind)
-        {
-            if (Input.GetKeyDown(key)) return true;
-        }
-        return false;
     }
 
     void ToggleUI()
