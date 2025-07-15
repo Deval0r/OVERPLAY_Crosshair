@@ -405,22 +405,23 @@ public class CrosshairRenderer : Graphic
         }
         else
         {
+            // Draw as a ring (polygon) to avoid seams
             int startIndex = vh.currentVertCount;
+            float halfThickness = frameThickness * 0.5f;
             for (int i = 0; i <= segments; i++)
             {
                 float angle = rotation + 2 * Mathf.PI * i / segments;
-                Vector2 pos = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
-                vh.AddVert(pos, color, Vector2.zero);
+                Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                Vector2 outer = center + dir * (radius + halfThickness);
+                Vector2 inner = center + dir * (radius - halfThickness);
+                vh.AddVert(outer, color, Vector2.zero);
+                vh.AddVert(inner, color, Vector2.zero);
             }
-            float thickness = frameThickness;
             for (int i = 0; i < segments; i++)
             {
-                float angleA = rotation + 2 * Mathf.PI * i / segments;
-                float angleB = rotation + 2 * Mathf.PI * (i + 1) / segments;
-                DrawThickLine(vh,
-                    center + new Vector2(Mathf.Cos(angleA), Mathf.Sin(angleA)) * radius,
-                    center + new Vector2(Mathf.Cos(angleB), Mathf.Sin(angleB)) * radius,
-                    thickness, color);
+                int idx = startIndex + i * 2;
+                vh.AddTriangle(idx, idx + 1, idx + 2);
+                vh.AddTriangle(idx + 1, idx + 3, idx + 2);
             }
         }
     }
@@ -448,20 +449,36 @@ public class CrosshairRenderer : Graphic
         }
         else
         {
-            float thickness = frameThickness;
+            // Uniform outline: offset corners along direction from center
+            int startIndex = vh.currentVertCount;
+            float halfThickness = frameThickness * 0.5f;
+            for (int i = 0; i <= 4; i++)
+            {
+                int idx = i % 4;
+                Vector2 dir = (corners[idx] - center).normalized;
+                Vector2 outer = corners[idx] + dir * halfThickness;
+                Vector2 inner = corners[idx] - dir * halfThickness;
+                vh.AddVert(outer, color, Vector2.zero);
+                vh.AddVert(inner, color, Vector2.zero);
+            }
             for (int i = 0; i < 4; i++)
-                DrawThickLine(vh, corners[i], corners[(i + 1) % 4], thickness, color);
+            {
+                int idx = startIndex + i * 2;
+                vh.AddTriangle(idx, idx + 1, idx + 2);
+                vh.AddTriangle(idx + 1, idx + 3, idx + 2);
+            }
         }
     }
 
     void DrawTriangle(VertexHelper vh, Vector2 center, float size, Color color, bool filled, float rotation = 0f)
     {
         float h = size * Mathf.Sqrt(3) / 2;
+        // Flip Y to make triangle point down
         Vector2[] pts = new Vector2[3]
         {
-            new Vector2(0, h),
-            new Vector2(-size, -h / 2),
-            new Vector2(size, -h / 2)
+            new Vector2(0, -h),
+            new Vector2(-size, h / 2),
+            new Vector2(size, h / 2)
         };
         // Rotate all points as a group
         for (int i = 0; i < 3; i++)
@@ -475,9 +492,24 @@ public class CrosshairRenderer : Graphic
         }
         else
         {
-            float thickness = frameThickness;
+            // Uniform outline: offset corners along direction from center
+            int startIndex = vh.currentVertCount;
+            float halfThickness = frameThickness * 0.5f;
+            for (int i = 0; i <= 3; i++)
+            {
+                int idx = i % 3;
+                Vector2 dir = (pts[idx] - center).normalized;
+                Vector2 outer = pts[idx] + dir * halfThickness;
+                Vector2 inner = pts[idx] - dir * halfThickness;
+                vh.AddVert(outer, color, Vector2.zero);
+                vh.AddVert(inner, color, Vector2.zero);
+            }
             for (int i = 0; i < 3; i++)
-                DrawThickLine(vh, pts[i], pts[(i + 1) % 3], thickness, color);
+            {
+                int idx = startIndex + i * 2;
+                vh.AddTriangle(idx, idx + 1, idx + 2);
+                vh.AddTriangle(idx + 1, idx + 3, idx + 2);
+            }
         }
     }
 
