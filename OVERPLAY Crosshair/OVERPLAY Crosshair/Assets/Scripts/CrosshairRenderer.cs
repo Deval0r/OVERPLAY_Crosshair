@@ -116,6 +116,10 @@ public class CrosshairRenderer : Graphic
     public UnityEngine.UI.Button hairTabButton;
     public UnityEngine.UI.Button dotTabButton;
 
+    [Header("Save/Load")]
+    public UnityEngine.UI.Button saveCodeButton;
+    public UnityEngine.UI.Button loadCodeButton;
+
     [Header("Snapping")]
     public Toggle snapRotationToggle;
     private bool SnapEnabled => snapRotationToggle != null && snapRotationToggle.isOn;
@@ -320,6 +324,9 @@ public class CrosshairRenderer : Graphic
 
         if (hideCrosshairButton) hideCrosshairButton.onClick.AddListener(ToggleCrosshair);
         UpdateHideCrosshairButtonText();
+
+        if (saveCodeButton) saveCodeButton.onClick.AddListener(SaveCrosshairCode);
+        if (loadCodeButton) loadCodeButton.onClick.AddListener(LoadCrosshairCode);
     }
 
     void Update()
@@ -847,6 +854,157 @@ public class CrosshairRenderer : Graphic
             cg.interactable = active;
             cg.blocksRaycasts = active;
         }
+    }
+
+    public void SaveCrosshairCode()
+    {
+        // Frame section
+        string frameSection = string.Join(",",
+            "F",
+            FrameShapeToCode(frameShape),
+            frameFilled ? "1" : "0",
+            frameColor.r.ToString("F3"), frameColor.g.ToString("F3"), frameColor.b.ToString("F3"), frameColor.a.ToString("F3"),
+            frameOpacity.ToString("F3"),
+            frameScale.ToString("F3"),
+            frameRotation.ToString("F3"),
+            frameThickness.ToString("F3"),
+            frameHue.ToString("F3"), frameSaturation.ToString("F3"), frameValue.ToString("F3")
+        );
+        // Hairs section
+        string hairsSection = string.Join(",",
+            "H",
+            HairStyleToCode(hairStyle),
+            hairCount,
+            customAngle.ToString("F3"),
+            hairThickness.ToString("F3"),
+            hairLength.ToString("F3"),
+            hairColor.r.ToString("F3"), hairColor.g.ToString("F3"), hairColor.b.ToString("F3"), hairColor.a.ToString("F3"),
+            hairOpacity.ToString("F3"),
+            hairsRotation.ToString("F3"),
+            hairHue.ToString("F3"), hairSaturation.ToString("F3"), hairValue.ToString("F3"),
+            (hairsExtendPastFrameToggle != null && hairsExtendPastFrameToggle.isOn) ? "1" : "0"
+        );
+        // Dot section
+        string dotSection = string.Join(",",
+            "D",
+            FrameShapeToCode(dotShape),
+            dotFilled ? "1" : "0",
+            dotColor.r.ToString("F3"), dotColor.g.ToString("F3"), dotColor.b.ToString("F3"), dotColor.a.ToString("F3"),
+            dotOpacity.ToString("F3"),
+            dotScale.ToString("F3"),
+            dotRotation.ToString("F3"),
+            dotHue.ToString("F3"), dotSaturation.ToString("F3"), dotValue.ToString("F3")
+        );
+        string code = frameSection + ";" + hairsSection + ";" + dotSection;
+        GUIUtility.systemCopyBuffer = code;
+    }
+
+    public void LoadCrosshairCode()
+    {
+        string code = GUIUtility.systemCopyBuffer;
+        if (string.IsNullOrEmpty(code)) return;
+        string[] sections = code.Split(';');
+        foreach (var section in sections)
+        {
+            string[] parts = section.Split(',');
+            if (parts.Length == 0) continue;
+            switch (parts[0])
+            {
+                case "F":
+                    if (parts.Length >= 14)
+                    {
+                        frameShape = CodeToFrameShape(parts[1]);
+                        frameFilled = parts[2] == "1";
+                        frameColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
+                        frameOpacity = ParseF(parts[7]);
+                        frameScale = ParseF(parts[8]);
+                        frameRotation = ParseF(parts[9]);
+                        frameThickness = ParseF(parts[10]);
+                        frameHue = ParseF(parts[11]);
+                        frameSaturation = ParseF(parts[12]);
+                        frameValue = ParseF(parts[13]);
+                    }
+                    break;
+                case "H":
+                    if (parts.Length >= 17)
+                    {
+                        hairStyle = CodeToHairStyle(parts[1]);
+                        hairCount = int.Parse(parts[2]);
+                        customAngle = ParseF(parts[3]);
+                        hairThickness = ParseF(parts[4]);
+                        hairLength = ParseF(parts[5]);
+                        hairColor = new Color(ParseF(parts[6]), ParseF(parts[7]), ParseF(parts[8]), ParseF(parts[9]));
+                        hairOpacity = ParseF(parts[10]);
+                        hairsRotation = ParseF(parts[11]);
+                        hairHue = ParseF(parts[12]);
+                        hairSaturation = ParseF(parts[13]);
+                        hairValue = ParseF(parts[14]);
+                        if (hairsExtendPastFrameToggle != null)
+                            hairsExtendPastFrameToggle.isOn = parts[15] == "1";
+                    }
+                    break;
+                case "D":
+                    if (parts.Length >= 13)
+                    {
+                        dotShape = CodeToFrameShape(parts[1]);
+                        dotFilled = parts[2] == "1";
+                        dotColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
+                        dotOpacity = ParseF(parts[7]);
+                        dotScale = ParseF(parts[8]);
+                        dotRotation = ParseF(parts[9]);
+                        dotHue = ParseF(parts[10]);
+                        dotSaturation = ParseF(parts[11]);
+                        dotValue = ParseF(parts[12]);
+                    }
+                    break;
+            }
+        }
+        SetVerticesDirty();
+    }
+
+    private string FrameShapeToCode(CrosshairShape shape)
+    {
+        switch (shape)
+        {
+            case CrosshairShape.Circle: return "C";
+            case CrosshairShape.Square: return "S";
+            case CrosshairShape.Triangle: return "T";
+            default: return "C";
+        }
+    }
+    private CrosshairShape CodeToFrameShape(string code)
+    {
+        switch (code)
+        {
+            case "C": return CrosshairShape.Circle;
+            case "S": return CrosshairShape.Square;
+            case "T": return CrosshairShape.Triangle;
+            default: return CrosshairShape.Circle;
+        }
+    }
+    private string HairStyleToCode(HairStyle style)
+    {
+        switch (style)
+        {
+            case HairStyle.Even: return "E";
+            case HairStyle.Custom: return "U";
+            default: return "E";
+        }
+    }
+    private HairStyle CodeToHairStyle(string code)
+    {
+        switch (code)
+        {
+            case "E": return HairStyle.Even;
+            case "U": return HairStyle.Custom;
+            default: return HairStyle.Even;
+        }
+    }
+    private float ParseF(string s)
+    {
+        float f = 0f;
+        float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f);
+        return f;
     }
 
 #if UNITY_EDITOR
