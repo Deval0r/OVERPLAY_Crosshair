@@ -105,6 +105,14 @@ public class CrosshairRenderer : Graphic
     public Slider dotScaleSlider;
     public Slider dotRotationSlider;
 
+    [Header("Tabs")]
+    public GameObject frameTabRoot;
+    public GameObject hairTabRoot;
+    public GameObject dotTabRoot;
+    public UnityEngine.UI.Button frameTabButton;
+    public UnityEngine.UI.Button hairTabButton;
+    public UnityEngine.UI.Button dotTabButton;
+
     [Header("Snapping")]
     public Toggle snapRotationToggle;
     private bool SnapEnabled => snapRotationToggle != null && snapRotationToggle.isOn;
@@ -122,6 +130,9 @@ public class CrosshairRenderer : Graphic
     private float keybindReleaseTimer = 0f;
     private float keybindReleaseGrace = 0.3f; // seconds
     private bool keybindWasHeld = false;
+
+    private enum TabType { Frame, Hair, Dot }
+    private TabType currentTab = TabType.Frame;
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {
@@ -253,6 +264,13 @@ public class CrosshairRenderer : Graphic
         });
 
         if (snapRotationToggle) snapRotationToggle.onValueChanged.AddListener(OnSnapToggleChanged);
+
+        // Tab button listeners
+        if (frameTabButton) frameTabButton.onClick.AddListener(() => ShowTab(TabType.Frame));
+        if (hairTabButton) hairTabButton.onClick.AddListener(() => ShowTab(TabType.Hair));
+        if (dotTabButton) dotTabButton.onClick.AddListener(() => ShowTab(TabType.Dot));
+        // Show default tab
+        ShowTab(currentTab);
 
         // Keybind record button
         if (keybindRecordButton) keybindRecordButton.onClick.AddListener(StartKeybindRecording);
@@ -629,14 +647,12 @@ public class CrosshairRenderer : Graphic
     void ShowColorPreview(GameObject previewObj, SpriteRenderer previewRenderer, Color color, PreviewType type)
     {
         if (previewObj == null || previewRenderer == null) {
-            Debug.LogWarning($"ShowColorPreview: previewObj or previewRenderer is null for {type}");
             return;
         }
         // Only set alpha to 1, keep RGB as is
         var c = previewRenderer.color;
         previewRenderer.color = new Color(c.r, c.g, c.b, 1f);
         previewObj.SetActive(true);
-        Debug.Log($"ShowColorPreview called for {type}: obj={previewObj.name}, alpha set to 1, GameObject enabled={previewObj.activeSelf}");
         // Start fade coroutine
         switch (type) {
             case PreviewType.Frame:
@@ -759,4 +775,53 @@ public class CrosshairRenderer : Graphic
                 text.text = enabled ? "Hide Crosshair" : "Show Crosshair";
         }
     }
+
+    private void ShowTab(TabType type)
+    {
+        currentTab = type;
+        SetTabActive(frameTabRoot, type == TabType.Frame);
+        SetTabActive(hairTabRoot, type == TabType.Hair);
+        SetTabActive(dotTabRoot, type == TabType.Dot);
+        // (Optional: visually highlight selected button here)
+    }
+
+    private void SetTabActive(GameObject tabRoot, bool active)
+    {
+        if (tabRoot == null) return;
+        tabRoot.SetActive(active);
+        var groups = tabRoot.GetComponentsInChildren<CanvasGroup>(true);
+        Debug.Log($"SetTabActive: {tabRoot.name} setActive={active}, CanvasGroups found={groups.Length}");
+        foreach (var cg in groups)
+        {
+            cg.interactable = active;
+            cg.blocksRaycasts = active;
+            Debug.Log($"  CanvasGroup on {cg.gameObject.name}: interactable={cg.interactable}, blocksRaycasts={cg.blocksRaycasts}, alpha={cg.alpha}");
+        }
+    }
+
+#if UNITY_EDITOR
+    void LateUpdate()
+    {
+        if (Input.GetMouseButtonDown(0))
+        {
+            var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+            {
+                position = Input.mousePosition
+            };
+            var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+            UnityEngine.EventSystems.EventSystem.current.RaycastAll(pointer, results);
+            if (results.Count == 0)
+            {
+                Debug.Log("No UI element under mouse.");
+            }
+            else
+            {
+                foreach (var r in results)
+                {
+                    Debug.Log($"UI under mouse: {r.gameObject.name} (sortingLayer={r.sortingLayer}, sortingOrder={r.sortingOrder})");
+                }
+            }
+        }
+    }
+#endif
 }
