@@ -897,6 +897,105 @@ public class CrosshairRenderer : Graphic
         );
         string code = frameSection + ";" + hairsSection + ";" + dotSection;
         GUIUtility.systemCopyBuffer = code;
+
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        // Render crosshair to 256x256 Texture2D and copy to clipboard as image
+        Texture2D preview = RenderCrosshairPreview(256, 256);
+        if (preview != null)
+        {
+            ClipboardImageHelper.CopyImageToClipboard(preview);
+            Destroy(preview);
+        }
+#endif
+    }
+
+    private Texture2D RenderCrosshairPreview(int width, int height)
+    {
+        // Create a temporary RenderTexture
+        var rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
+        var prevRT = RenderTexture.active;
+        RenderTexture.active = rt;
+        GL.Clear(true, true, new Color(0,0,0,0));
+
+        // Create a temporary Canvas and CrosshairRenderer for offscreen rendering
+        var go = new GameObject("CrosshairPreviewTemp", typeof(RectTransform));
+        var canvasGO = new GameObject("CrosshairPreviewCanvas", typeof(Canvas));
+        var canvas = canvasGO.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        var camGO = new GameObject("CrosshairPreviewCamera", typeof(Camera));
+        var cam = camGO.GetComponent<Camera>();
+        cam.orthographic = true;
+        cam.orthographicSize = height/2f;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(0,0,0,0);
+        cam.targetTexture = rt;
+        canvas.worldCamera = cam;
+        canvas.pixelPerfect = true;
+        canvas.planeDistance = 1;
+        go.transform.SetParent(canvasGO.transform, false);
+        var rect = go.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(width, height);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        var previewRenderer = go.AddComponent<CrosshairRenderer>();
+        // Copy all relevant fields
+        CopyCrosshairSettingsTo(previewRenderer);
+        previewRenderer.raycastTarget = false;
+        previewRenderer.SetVerticesDirty();
+        // Force render
+        canvasGO.SetActive(true);
+        cam.Render();
+        // Read pixels
+        Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+        tex.Apply();
+        // Cleanup
+        RenderTexture.active = prevRT;
+        cam.targetTexture = null;
+        GameObject.DestroyImmediate(go);
+        GameObject.DestroyImmediate(canvasGO);
+        GameObject.DestroyImmediate(camGO);
+        RenderTexture.ReleaseTemporary(rt);
+        return tex;
+    }
+
+    private void CopyCrosshairSettingsTo(CrosshairRenderer target)
+    {
+        // Copy all relevant fields
+        target.frameShape = frameShape;
+        target.frameFilled = frameFilled;
+        target.frameColor = frameColor;
+        target.frameOpacity = frameOpacity;
+        target.frameScale = frameScale;
+        target.frameRotation = frameRotation;
+        target.frameThickness = frameThickness;
+        target.hairStyle = hairStyle;
+        target.hairCount = hairCount;
+        target.customAngle = customAngle;
+        target.hairThickness = hairThickness;
+        target.hairLength = hairLength;
+        target.hairColor = hairColor;
+        target.hairOpacity = hairOpacity;
+        target.hairsRotation = hairsRotation;
+        target.dotShape = dotShape;
+        target.dotFilled = dotFilled;
+        target.dotColor = dotColor;
+        target.dotOpacity = dotOpacity;
+        target.dotScale = dotScale;
+        target.dotRotation = dotRotation;
+        target.frameHue = frameHue;
+        target.frameSaturation = frameSaturation;
+        target.frameValue = frameValue;
+        target.hairHue = hairHue;
+        target.hairSaturation = hairSaturation;
+        target.hairValue = hairValue;
+        target.dotHue = dotHue;
+        target.dotSaturation = dotSaturation;
+        target.dotValue = dotValue;
+        // For the toggle, just copy the value if present
+        if (target.hairsExtendPastFrameToggle != null && hairsExtendPastFrameToggle != null)
+            target.hairsExtendPastFrameToggle.isOn = hairsExtendPastFrameToggle.isOn;
     }
 
     public void LoadCrosshairCode()
