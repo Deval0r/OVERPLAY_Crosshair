@@ -37,6 +37,19 @@ public class CrosshairRenderer : Graphic
     public float dotScale = 1f;
     [Range(0, 360)] public float dotRotation = 0f;
 
+    // --- Frame HSV ---
+    [Range(0,1)] public float frameHue = 0f;
+    [Range(0,1)] public float frameSaturation = 1f;
+    [Range(0,1)] public float frameValue = 1f;
+    // --- Hair HSV ---
+    [Range(0,1)] public float hairHue = 0f;
+    [Range(0,1)] public float hairSaturation = 1f;
+    [Range(0,1)] public float hairValue = 1f;
+    // --- Dot HSV ---
+    [Range(0,1)] public float dotHue = 0f;
+    [Range(0,1)] public float dotSaturation = 1f;
+    [Range(0,1)] public float dotValue = 1f;
+
     // --- UI References ---
     [Header("Frame UI")]
     public TMP_Dropdown frameShapeDropdown;
@@ -46,8 +59,14 @@ public class CrosshairRenderer : Graphic
     public Slider frameRotationSlider;
     public Slider frameThicknessSlider;
     public Slider frameColorSlider; // always-visible color slider
+    public Slider frameSaturationSlider;
+    public Slider frameValueSlider;
     public GameObject frameColorPreviewObj; // preview GameObject with sprite
-    private UnityEngine.UI.Image frameColorPreviewImg; // cached Image component
+    private SpriteRenderer frameColorPreviewRenderer; // cached SpriteRenderer
+    public GameObject frameSaturationRefObj;
+    private SpriteRenderer frameSaturationRefRenderer;
+    public GameObject frameValueRefObj;
+    private SpriteRenderer frameValueRefRenderer;
     public UnityEngine.UI.Button hideCrosshairButton;
 
     [Header("Hairs UI")]
@@ -58,8 +77,14 @@ public class CrosshairRenderer : Graphic
     public Slider hairLengthSlider;
     public Slider hairsRotationSlider;
     public Slider hairColorSlider; // always-visible color slider
+    public Slider hairSaturationSlider;
+    public Slider hairValueSlider;
     public GameObject hairColorPreviewObj; // preview GameObject with sprite
-    private UnityEngine.UI.Image hairColorPreviewImg; // cached Image component
+    private SpriteRenderer hairColorPreviewRenderer;
+    public GameObject hairSaturationRefObj;
+    private SpriteRenderer hairSaturationRefRenderer;
+    public GameObject hairValueRefObj;
+    private SpriteRenderer hairValueRefRenderer;
     public Slider hairOpacitySlider;
     public Toggle hairsExtendPastFrameToggle;
     public Slider hairDistanceSlider;
@@ -68,8 +93,14 @@ public class CrosshairRenderer : Graphic
     public TMP_Dropdown dotShapeDropdown;
     public Toggle dotFilledToggle;
     public Slider dotColorSlider; // always-visible color slider
+    public Slider dotSaturationSlider;
+    public Slider dotValueSlider;
     public GameObject dotColorPreviewObj; // preview GameObject with sprite
-    private UnityEngine.UI.Image dotColorPreviewImg; // cached Image component
+    private SpriteRenderer dotColorPreviewRenderer;
+    public GameObject dotSaturationRefObj;
+    private SpriteRenderer dotSaturationRefRenderer;
+    public GameObject dotValueRefObj;
+    private SpriteRenderer dotValueRefRenderer;
     public Slider dotOpacitySlider;
     public Slider dotScaleSlider;
     public Slider dotRotationSlider;
@@ -108,9 +139,15 @@ public class CrosshairRenderer : Graphic
     new void Start()
     {
         // Cache Image components from preview GameObjects
-        if (frameColorPreviewObj) frameColorPreviewImg = frameColorPreviewObj.GetComponent<UnityEngine.UI.Image>();
-        if (hairColorPreviewObj) hairColorPreviewImg = hairColorPreviewObj.GetComponent<UnityEngine.UI.Image>();
-        if (dotColorPreviewObj) dotColorPreviewImg = dotColorPreviewObj.GetComponent<UnityEngine.UI.Image>();
+        if (frameColorPreviewObj) frameColorPreviewRenderer = frameColorPreviewObj.GetComponent<SpriteRenderer>();
+        if (hairColorPreviewObj) hairColorPreviewRenderer = hairColorPreviewObj.GetComponent<SpriteRenderer>();
+        if (dotColorPreviewObj) dotColorPreviewRenderer = dotColorPreviewObj.GetComponent<SpriteRenderer>();
+        if (frameSaturationRefObj) frameSaturationRefRenderer = frameSaturationRefObj.GetComponent<SpriteRenderer>();
+        if (frameValueRefObj) frameValueRefRenderer = frameValueRefObj.GetComponent<SpriteRenderer>();
+        if (hairSaturationRefObj) hairSaturationRefRenderer = hairSaturationRefObj.GetComponent<SpriteRenderer>();
+        if (hairValueRefObj) hairValueRefRenderer = hairValueRefObj.GetComponent<SpriteRenderer>();
+        if (dotSaturationRefObj) dotSaturationRefRenderer = dotSaturationRefObj.GetComponent<SpriteRenderer>();
+        if (dotValueRefObj) dotValueRefRenderer = dotValueRefObj.GetComponent<SpriteRenderer>();
         // --- Frame UI ---
         if (frameShapeDropdown) frameShapeDropdown.onValueChanged.AddListener(val => { frameShape = (CrosshairShape)val; SetVerticesDirty(); });
         if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { frameFilled = val; SetVerticesDirty(); });
@@ -126,11 +163,24 @@ public class CrosshairRenderer : Graphic
         if (frameThicknessSlider) frameThicknessSlider.onValueChanged.AddListener(val => { frameThickness = val; SetVerticesDirty(); });
         if (frameColorSlider) {
             frameColorSlider.onValueChanged.AddListener(val => {
-                frameColor = Color.HSVToRGB(val, 1f, 1f);
+                frameHue = val;
+                frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
                 SetVerticesDirty();
-                ShowColorPreview(frameColorPreviewObj, frameColorPreviewImg, frameColor, PreviewType.Frame);
+                ShowColorPreview(frameColorPreviewObj, frameColorPreviewRenderer, frameColor, PreviewType.Frame);
             });
         }
+        if (frameSaturationSlider) frameSaturationSlider.onValueChanged.AddListener(val => {
+            frameSaturation = val;
+            frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
+            SetVerticesDirty();
+            ShowReferenceImage(frameSaturationRefObj, frameSaturationRefRenderer, RefType.FrameSaturation);
+        });
+        if (frameValueSlider) frameValueSlider.onValueChanged.AddListener(val => {
+            frameValue = val;
+            frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
+            SetVerticesDirty();
+            ShowReferenceImage(frameValueRefObj, frameValueRefRenderer, RefType.FrameValue);
+        });
 
         // --- Hairs UI ---
         if (hairStyleDropdown) hairStyleDropdown.onValueChanged.AddListener(val => { hairStyle = (HairStyle)val; SetVerticesDirty(); UpdateHairUI(); });
@@ -147,11 +197,24 @@ public class CrosshairRenderer : Graphic
         });
         if (hairColorSlider) {
             hairColorSlider.onValueChanged.AddListener(val => {
-                hairColor = Color.HSVToRGB(val, 1f, 1f);
+                hairHue = val;
+                hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
                 SetVerticesDirty();
-                ShowColorPreview(hairColorPreviewObj, hairColorPreviewImg, hairColor, PreviewType.Hair);
+                ShowColorPreview(hairColorPreviewObj, hairColorPreviewRenderer, hairColor, PreviewType.Hair);
             });
         }
+        if (hairSaturationSlider) hairSaturationSlider.onValueChanged.AddListener(val => {
+            hairSaturation = val;
+            hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
+            SetVerticesDirty();
+            ShowReferenceImage(hairSaturationRefObj, hairSaturationRefRenderer, RefType.HairSaturation);
+        });
+        if (hairValueSlider) hairValueSlider.onValueChanged.AddListener(val => {
+            hairValue = val;
+            hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
+            SetVerticesDirty();
+            ShowReferenceImage(hairValueRefObj, hairValueRefRenderer, RefType.HairValue);
+        });
         if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { hairOpacity = val; SetVerticesDirty(); });
         if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.onValueChanged.AddListener(val => { SetVerticesDirty(); });
         if (hairDistanceSlider) hairDistanceSlider.onValueChanged.AddListener(val => { SetVerticesDirty(); });
@@ -161,11 +224,24 @@ public class CrosshairRenderer : Graphic
         if (dotFilledToggle) dotFilledToggle.onValueChanged.AddListener(val => { dotFilled = val; SetVerticesDirty(); });
         if (dotColorSlider) {
             dotColorSlider.onValueChanged.AddListener(val => {
-                dotColor = Color.HSVToRGB(val, 1f, 1f);
+                dotHue = val;
+                dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
                 SetVerticesDirty();
-                ShowColorPreview(dotColorPreviewObj, dotColorPreviewImg, dotColor, PreviewType.Dot);
+                ShowColorPreview(dotColorPreviewObj, dotColorPreviewRenderer, dotColor, PreviewType.Dot);
             });
         }
+        if (dotSaturationSlider) dotSaturationSlider.onValueChanged.AddListener(val => {
+            dotSaturation = val;
+            dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
+            SetVerticesDirty();
+            ShowReferenceImage(dotSaturationRefObj, dotSaturationRefRenderer, RefType.DotSaturation);
+        });
+        if (dotValueSlider) dotValueSlider.onValueChanged.AddListener(val => {
+            dotValue = val;
+            dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
+            SetVerticesDirty();
+            ShowReferenceImage(dotValueRefObj, dotValueRefRenderer, RefType.DotValue);
+        });
         if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { dotOpacity = val; SetVerticesDirty(); });
         if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { dotScale = val; SetVerticesDirty(); });
         if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => {
@@ -537,50 +613,130 @@ public class CrosshairRenderer : Graphic
     private float previewFadeDelay = 1.0f; // seconds before fade starts
     private float previewFadeDuration = 0.5f; // fade out duration
 
-    private enum PreviewType { Frame, Hair, Dot }
+    // --- Reference Image Fade Logic ---
+    private Coroutine frameSaturationRefFadeCoroutine;
+    private Coroutine frameValueRefFadeCoroutine;
+    private Coroutine hairSaturationRefFadeCoroutine;
+    private Coroutine hairValueRefFadeCoroutine;
+    private Coroutine dotSaturationRefFadeCoroutine;
+    private Coroutine dotValueRefFadeCoroutine;
+    private float refFadeDelay = 1.0f;
+    private float refFadeDuration = 0.5f;
 
-    void ShowColorPreview(GameObject previewObj, UnityEngine.UI.Image previewImg, Color color, PreviewType type)
+    private enum PreviewType { Frame, Hair, Dot }
+    private enum RefType { FrameSaturation, FrameValue, HairSaturation, HairValue, DotSaturation, DotValue }
+
+    void ShowColorPreview(GameObject previewObj, SpriteRenderer previewRenderer, Color color, PreviewType type)
     {
-        if (previewObj == null || previewImg == null) return;
-        previewImg.color = new Color(color.r, color.g, color.b, 1f);
+        if (previewObj == null || previewRenderer == null) {
+            Debug.LogWarning($"ShowColorPreview: previewObj or previewRenderer is null for {type}");
+            return;
+        }
+        // Only set alpha to 1, keep RGB as is
+        var c = previewRenderer.color;
+        previewRenderer.color = new Color(c.r, c.g, c.b, 1f);
         previewObj.SetActive(true);
+        Debug.Log($"ShowColorPreview called for {type}: obj={previewObj.name}, alpha set to 1, GameObject enabled={previewObj.activeSelf}");
         // Start fade coroutine
         switch (type) {
             case PreviewType.Frame:
                 if (framePreviewFadeCoroutine != null) StopCoroutine(framePreviewFadeCoroutine);
-                framePreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewImg, PreviewType.Frame));
+                framePreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewRenderer, PreviewType.Frame));
                 break;
             case PreviewType.Hair:
                 if (hairPreviewFadeCoroutine != null) StopCoroutine(hairPreviewFadeCoroutine);
-                hairPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewImg, PreviewType.Hair));
+                hairPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewRenderer, PreviewType.Hair));
                 break;
             case PreviewType.Dot:
                 if (dotPreviewFadeCoroutine != null) StopCoroutine(dotPreviewFadeCoroutine);
-                dotPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewImg, PreviewType.Dot));
+                dotPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewRenderer, PreviewType.Dot));
                 break;
         }
     }
 
-    System.Collections.IEnumerator FadeOutPreview(GameObject previewObj, UnityEngine.UI.Image previewImg, PreviewType type)
+    void ShowReferenceImage(GameObject refObj, SpriteRenderer refRenderer, RefType type)
+    {
+        if (refObj == null || refRenderer == null) return;
+        // Only set alpha to 1, keep RGB as is
+        var c = refRenderer.color;
+        refRenderer.color = new Color(c.r, c.g, c.b, 1f);
+        refObj.SetActive(true);
+        // Start fade coroutine
+        switch (type)
+        {
+            case RefType.FrameSaturation:
+                if (frameSaturationRefFadeCoroutine != null) StopCoroutine(frameSaturationRefFadeCoroutine);
+                frameSaturationRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.FrameSaturation));
+                break;
+            case RefType.FrameValue:
+                if (frameValueRefFadeCoroutine != null) StopCoroutine(frameValueRefFadeCoroutine);
+                frameValueRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.FrameValue));
+                break;
+            case RefType.HairSaturation:
+                if (hairSaturationRefFadeCoroutine != null) StopCoroutine(hairSaturationRefFadeCoroutine);
+                hairSaturationRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.HairSaturation));
+                break;
+            case RefType.HairValue:
+                if (hairValueRefFadeCoroutine != null) StopCoroutine(hairValueRefFadeCoroutine);
+                hairValueRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.HairValue));
+                break;
+            case RefType.DotSaturation:
+                if (dotSaturationRefFadeCoroutine != null) StopCoroutine(dotSaturationRefFadeCoroutine);
+                dotSaturationRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.DotSaturation));
+                break;
+            case RefType.DotValue:
+                if (dotValueRefFadeCoroutine != null) StopCoroutine(dotValueRefFadeCoroutine);
+                dotValueRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.DotValue));
+                break;
+        }
+    }
+
+    System.Collections.IEnumerator FadeOutPreview(GameObject previewObj, SpriteRenderer previewRenderer, PreviewType type)
     {
         yield return new WaitForSeconds(previewFadeDelay);
         float t = 0f;
-        Color startColor = previewImg.color;
+        Color startColor = previewRenderer.color;
         while (t < previewFadeDuration)
         {
             t += Time.deltaTime;
             float alpha = Mathf.Lerp(1f, 0f, t / previewFadeDuration);
-            previewImg.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
+            previewRenderer.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
             yield return null;
         }
         previewObj.SetActive(false);
         // Reset alpha for next time
-        previewImg.color = new Color(startColor.r, startColor.g, startColor.b, 1f);
+        previewRenderer.color = new Color(startColor.r, startColor.g, startColor.b, 1f);
         // Null out coroutine reference
         switch (type) {
             case PreviewType.Frame: framePreviewFadeCoroutine = null; break;
             case PreviewType.Hair: hairPreviewFadeCoroutine = null; break;
             case PreviewType.Dot: dotPreviewFadeCoroutine = null; break;
+        }
+    }
+
+    System.Collections.IEnumerator FadeOutReference(GameObject refObj, SpriteRenderer refRenderer, RefType type)
+    {
+        yield return new WaitForSeconds(refFadeDelay);
+        float t = 0f;
+        Color startColor = refRenderer.color;
+        while (t < refFadeDuration)
+        {
+            t += Time.deltaTime;
+            float alpha = Mathf.Lerp(1f, 0f, t / refFadeDuration);
+            refRenderer.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
+            yield return null;
+        }
+        refObj.SetActive(false);
+        refRenderer.color = new Color(startColor.r, startColor.g, startColor.b, 1f);
+        // Null out coroutine reference
+        switch (type)
+        {
+            case RefType.FrameSaturation: frameSaturationRefFadeCoroutine = null; break;
+            case RefType.FrameValue: frameValueRefFadeCoroutine = null; break;
+            case RefType.HairSaturation: hairSaturationRefFadeCoroutine = null; break;
+            case RefType.HairValue: hairValueRefFadeCoroutine = null; break;
+            case RefType.DotSaturation: dotSaturationRefFadeCoroutine = null; break;
+            case RefType.DotValue: dotValueRefFadeCoroutine = null; break;
         }
     }
 
