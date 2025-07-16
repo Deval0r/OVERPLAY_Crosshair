@@ -2,6 +2,9 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using System;
+using System.IO;
+
 
 public enum CrosshairShape { Circle, Square, Triangle }
 public enum HairStyle { Even, Custom }
@@ -119,6 +122,7 @@ public class CrosshairRenderer : Graphic
     [Header("Save/Load")]
     public UnityEngine.UI.Button saveCodeButton;
     public UnityEngine.UI.Button loadCodeButton;
+    public UnityEngine.UI.Button generateImageButton;
 
     [Header("Snapping")]
     public Toggle snapRotationToggle;
@@ -327,6 +331,7 @@ public class CrosshairRenderer : Graphic
 
         if (saveCodeButton) saveCodeButton.onClick.AddListener(SaveCrosshairCode);
         if (loadCodeButton) loadCodeButton.onClick.AddListener(LoadCrosshairCode);
+        if (generateImageButton) generateImageButton.onClick.AddListener(GenerateAndOpenImage);
     }
 
     void Update()
@@ -897,21 +902,65 @@ public class CrosshairRenderer : Graphic
         );
         string code = frameSection + ";" + hairsSection + ";" + dotSection;
         GUIUtility.systemCopyBuffer = code;
+        Debug.Log($"Crosshair code copied to clipboard: {code}");
+    }
 
+    public void GenerateAndOpenImage()
+    {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-        // Render crosshair to 256x256 Texture2D and copy to clipboard as image
-        Texture2D preview = RenderCrosshairPreview(256, 256);
-        if (preview != null)
-        {
-            ClipboardImageHelper.CopyImageToClipboard(preview);
-            Destroy(preview);
-        }
+        // Take a screenshot of the center area of the screen
+        StartCoroutine(CaptureCrosshairScreenshot());
 #endif
+    }
+
+    private System.Collections.IEnumerator CaptureCrosshairScreenshot()
+    {
+        // Wait for the end of frame to ensure everything is rendered
+        yield return new WaitForEndOfFrame();
+        
+        // Get screen dimensions
+        int screenWidth = Screen.width;
+        int screenHeight = Screen.height;
+        
+        // Calculate center area (256x256 pixels around the center)
+        int captureSize = 256;
+        int x = (screenWidth - captureSize) / 2;
+        int y = (screenHeight - captureSize) / 2;
+        
+        // Create texture and capture the center area
+        Texture2D screenshot = new Texture2D(captureSize, captureSize, TextureFormat.RGB24, false);
+        screenshot.ReadPixels(new Rect(x, y, captureSize, captureSize), 0, 0);
+        screenshot.Apply();
+        
+        // Convert to PNG and save
+        byte[] pngData = screenshot.EncodeToPNG();
+        if (pngData != null && pngData.Length > 0)
+        {
+            // Save PNG to desktop
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            string path = Path.Combine(desktop, $"CrosshairPreview_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+            File.WriteAllBytes(path, pngData);
+            Debug.Log("Crosshair screenshot saved to: " + path);
+            
+            // Open the image with default application
+            try
+            {
+                System.Diagnostics.Process.Start(path);
+                Debug.Log("Opened screenshot with default application: " + path);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Failed to open screenshot: {e.Message}");
+            }
+        }
+        
+        // Cleanup
+        Destroy(screenshot);
     }
 
     private Texture2D RenderCrosshairPreview(int width, int height)
     {
-        // Create a temporary RenderTexture
+        // Create a RenderTexture (not temporary since we're not using GetTemporary)
         var rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
         var prevRT = RenderTexture.active;
         RenderTexture.active = rt;
@@ -925,7 +974,7 @@ public class CrosshairRenderer : Graphic
         var camGO = new GameObject("CrosshairPreviewCamera", typeof(Camera));
         var cam = camGO.GetComponent<Camera>();
         cam.orthographic = true;
-        cam.orthographicSize = height/2f;
+        cam.orthographicSize = height/1.5f; // Larger orthographic size to ensure full crosshair is visible
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = new Color(0,0,0,0);
         cam.targetTexture = rt;
@@ -956,7 +1005,7 @@ public class CrosshairRenderer : Graphic
         GameObject.DestroyImmediate(go);
         GameObject.DestroyImmediate(canvasGO);
         GameObject.DestroyImmediate(camGO);
-        RenderTexture.ReleaseTemporary(rt);
+        rt.Release(); // Use Release() instead of ReleaseTemporary() for manually created RenderTexture
         return tex;
     }
 
@@ -1105,6 +1154,8 @@ public class CrosshairRenderer : Graphic
         float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f);
         return f;
     }
+
+
 
 #if UNITY_EDITOR
     void LateUpdate()
