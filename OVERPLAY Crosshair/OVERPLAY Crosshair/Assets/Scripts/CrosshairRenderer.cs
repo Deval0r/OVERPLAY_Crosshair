@@ -13,40 +13,40 @@ public class CrosshairRenderer : Graphic
     // Frame
     public CrosshairShape frameShape = CrosshairShape.Circle;
     public bool frameFilled = false;
-    public Color frameColor = Color.white;
+    public Color frameColor = Color.red;
     [Range(0, 1)] public float frameOpacity = 1f;
-    public float frameScale = 1f;
+    public float frameScale = 0.9f;
     [Range(0, 360)] public float frameRotation = 0f;
-    public float frameThickness = 2f;
+    public float frameThickness = 5f;
 
     // Hairs
     public HairStyle hairStyle = HairStyle.Even;
     public int hairCount = 4;
-    public float customAngle = 90f;
-    public float hairThickness = 2f;
-    public float hairLength = 20f;
-    public Color hairColor = Color.white;
+    public float customAngle = 0f;
+    public float hairThickness = 5.5f;
+    public float hairLength = 24f;
+    public Color hairColor = Color.red;
     [Range(0, 1)] public float hairOpacity = 1f;
     [Range(0, 360)] public float hairsRotation = 0f;
 
     // Dot
-    public CrosshairShape dotShape = CrosshairShape.Circle;
+    public CrosshairShape dotShape = CrosshairShape.Square;
     public bool dotFilled = true;
-    public Color dotColor = Color.white;
+    public Color dotColor = Color.red;
     [Range(0, 1)] public float dotOpacity = 1f;
-    public float dotScale = 1f;
-    [Range(0, 360)] public float dotRotation = 0f;
+    public float dotScale = 0.9f;
+    [Range(0, 360)] public float dotRotation = 45f;
 
     // --- Frame HSV ---
-    [Range(0,1)] public float frameHue = 0f;
+    [Range(0,1)] public float frameHue = 1f;
     [Range(0,1)] public float frameSaturation = 1f;
     [Range(0,1)] public float frameValue = 1f;
     // --- Hair HSV ---
-    [Range(0,1)] public float hairHue = 0f;
+    [Range(0,1)] public float hairHue = 1f;
     [Range(0,1)] public float hairSaturation = 1f;
     [Range(0,1)] public float hairValue = 1f;
     // --- Dot HSV ---
-    [Range(0,1)] public float dotHue = 0f;
+    [Range(0,1)] public float dotHue = 1f;
     [Range(0,1)] public float dotSaturation = 1f;
     [Range(0,1)] public float dotValue = 1f;
 
@@ -144,6 +144,44 @@ public class CrosshairRenderer : Graphic
 
     new void Awake()
     {
+        // --- Frame ---
+        frameShape = CrosshairShape.Circle;
+        frameFilled = false;
+        frameColor = Color.red;
+        frameOpacity = 1f;
+        frameScale = 0.9f;
+        frameRotation = 0f;
+        frameThickness = 5f;
+
+        // --- Hairs ---
+        hairStyle = HairStyle.Even;
+        hairCount = 4;
+        customAngle = 0f;
+        hairThickness = 5.5f;
+        hairLength = 24f;
+        hairColor = Color.red;
+        hairOpacity = 1f;
+        hairsRotation = 0f;
+
+        // --- Dot ---
+        dotShape = CrosshairShape.Square;
+        dotFilled = true;
+        dotColor = Color.red;
+        dotOpacity = 1f;
+        dotScale = 0.9f;
+        dotRotation = 45f;
+
+        // --- HSV ---
+        frameHue = 1f;
+        frameSaturation = 1f;
+        frameValue = 1f;
+        hairHue = 1f;
+        hairSaturation = 1f;
+        hairValue = 1f;
+        dotHue = 1f;
+        dotSaturation = 1f;
+        dotValue = 1f;
+
         raycastTarget = false;
     }
 
@@ -328,7 +366,6 @@ public class CrosshairRenderer : Graphic
             {
                 if (!keybindWasHeld)
                 {
-                    Debug.Log("Keybind held, toggling UI: " + KeybindToString(currentKeybind));
                     ToggleUI();
                     keybindWasHeld = true;
                 }
@@ -790,12 +827,10 @@ public class CrosshairRenderer : Graphic
         if (tabRoot == null) return;
         tabRoot.SetActive(active);
         var groups = tabRoot.GetComponentsInChildren<CanvasGroup>(true);
-        Debug.Log($"SetTabActive: {tabRoot.name} setActive={active}, CanvasGroups found={groups.Length}");
         foreach (var cg in groups)
         {
             cg.interactable = active;
             cg.blocksRaycasts = active;
-            Debug.Log($"  CanvasGroup on {cg.gameObject.name}: interactable={cg.interactable}, blocksRaycasts={cg.blocksRaycasts}, alpha={cg.alpha}");
         }
     }
 
@@ -812,14 +847,14 @@ public class CrosshairRenderer : Graphic
             UnityEngine.EventSystems.EventSystem.current.RaycastAll(pointer, results);
             if (results.Count == 0)
             {
-                Debug.Log("No UI element under mouse.");
+                // Debug.Log("No UI element under mouse.");
             }
             else
             {
-                foreach (var r in results)
-                {
-                    Debug.Log($"UI under mouse: {r.gameObject.name} (sortingLayer={r.sortingLayer}, sortingOrder={r.sortingOrder})");
-                }
+                // foreach (var r in results)
+                // {
+                //     Debug.Log($"UI under mouse: {r.gameObject.name} (sortingLayer={r.sortingLayer}, sortingOrder={r.sortingOrder})");
+                // }
             }
         }
     }
