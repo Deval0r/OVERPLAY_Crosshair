@@ -105,6 +105,9 @@ public class CrosshairRenderer : Graphic
     public Slider dotScaleSlider;
     public Slider dotRotationSlider;
 
+    [Header("Crosshair Visual Root")]
+    public GameObject crosshairVisualRoot; // Assign this to the crosshair graphics root in the Inspector
+
     [Header("Tabs")]
     public GameObject frameTabRoot;
     public GameObject hairTabRoot;
@@ -796,10 +799,22 @@ public class CrosshairRenderer : Graphic
     // --- Color Picker Placeholder ---
     // (Removed old color picker logic)
 
+    private bool crosshairHidden = false;
+
     public void ToggleCrosshair()
     {
-        enabled = !enabled;
-        if (enabled) SetVerticesDirty();
+        crosshairHidden = !crosshairHidden;
+        if (crosshairHidden)
+        {
+            raycastTarget = false;
+            canvasRenderer.cull = true;
+        }
+        else
+        {
+            raycastTarget = false; // keep clickthrough
+            canvasRenderer.cull = false;
+            SetVerticesDirty();
+        }
         UpdateHideCrosshairButtonText();
     }
 
@@ -809,7 +824,7 @@ public class CrosshairRenderer : Graphic
         {
             var text = hideCrosshairButton.GetComponentInChildren<TMPro.TMP_Text>();
             if (text)
-                text.text = enabled ? "Hide Crosshair" : "Show Crosshair";
+                text.text = crosshairHidden ? "Show Crosshair" : "Hide Crosshair";
         }
     }
 
