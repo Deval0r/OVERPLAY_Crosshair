@@ -8,7 +8,9 @@ using UnityEngine.EventSystems;
 using System.Linq; // Added for .Any() and .Select()
 using System.Security.Cryptography;
 using System.Text;
-
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+using System.Windows.Forms;
+#endif
 
 public enum CrosshairShape { Circle, Square, Triangle }
 public enum HairStyle { Even, Custom }
@@ -143,6 +145,7 @@ public class CrosshairRenderer : Graphic
     public GameObject presetKeybindsPanel;
     public UnityEngine.UI.Button[] presetKeybindButtons = new UnityEngine.UI.Button[5];
     public Toggle[] presetHoldToggles = new Toggle[5];
+    public UnityEngine.UI.Button clearAllPresetKeybindsButton; // Assign in Inspector
 
     private enum SpecialKey
     {
@@ -405,15 +408,19 @@ public class CrosshairRenderer : Graphic
         
         // Setup preset keybind system
         SetupPresetKeybindSystem();
+
+        if (clearAllPresetKeybindsButton != null)
+            clearAllPresetKeybindsButton.onClick.AddListener(ClearAllPresetKeybinds);
     }
 
     void Update()
     {
         if (recordingKeybind)
         {
-            // Only check keys supported by SystemInput, but use Unity Input for recording
-            foreach (var key in SystemInput.VK_KeyCodes.Keys)
+            // Check all possible KeyCodes
+            foreach (KeyCode key in System.Enum.GetValues(typeof(KeyCode)))
             {
+                if (key == KeyCode.None) continue;
                 if (Input.GetKeyDown(key))
                     pressedKeys.Add(key);
                 if (Input.GetKeyUp(key))
@@ -430,16 +437,14 @@ public class CrosshairRenderer : Graphic
             float scroll = Input.mouseScrollDelta.y;
             if (Mathf.Abs(scroll) > 0.01f)
             {
-                // Add as a special key, clear after
-                if (scroll > 0) pressedKeys.Add(KeyCode.JoystickButton10); // Use a dummy KeyCode for scroll up
-                else if (scroll < 0) pressedKeys.Add(KeyCode.JoystickButton11); // Dummy for scroll down
+                if (scroll > 0) pressedKeys.Add(KeyCode.JoystickButton10);
+                else if (scroll < 0) pressedKeys.Add(KeyCode.JoystickButton11);
             }
             // Track the last non-empty set of pressed keys
             if (pressedKeys.Count > 0)
             {
                 lastPressedKeys = new List<KeyCode>(pressedKeys);
                 keybindReleaseTimer = 0f;
-                // Show as KeybindEntry
                 var displayList = new List<KeybindEntry>();
                 foreach (var k in lastPressedKeys)
                 {
@@ -452,13 +457,11 @@ public class CrosshairRenderer : Graphic
                 }
                 if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(displayList);
             }
-            // If no keys are pressed, start grace timer
             if (pressedKeys.Count == 0 && lastPressedKeys.Count > 0)
             {
                 keybindReleaseTimer += Time.unscaledDeltaTime;
                 if (keybindReleaseTimer >= keybindReleaseGrace)
                 {
-                    // Convert lastPressedKeys to KeybindEntry
                     currentKeybind = new List<KeybindEntry>();
                     foreach (var k in lastPressedKeys)
                     {
@@ -480,8 +483,9 @@ public class CrosshairRenderer : Graphic
         }
         else if (recordingPresetKeybind)
         {
-            foreach (var key in SystemInput.VK_KeyCodes.Keys)
+            foreach (KeyCode key in System.Enum.GetValues(typeof(KeyCode)))
             {
+                if (key == KeyCode.None) continue;
                 if (Input.GetKeyDown(key))
                     presetPressedKeys.Add(key);
                 if (Input.GetKeyUp(key))
@@ -552,7 +556,7 @@ public class CrosshairRenderer : Graphic
             {
                 if (k.specialKey == SpecialKey.None)
                 {
-                    if (!SystemInput.GetKey(k.keyCode)) allHeld = false;
+                    if (!Input.GetKey(k.keyCode)) allHeld = false;
                 }
                 else
                 {
@@ -592,7 +596,7 @@ public class CrosshairRenderer : Graphic
                     {
                         if (k.specialKey == SpecialKey.None)
                         {
-                            if (!SystemInput.GetKey(k.keyCode)) allPresetKeysHeld = false;
+                            if (!Input.GetKey(k.keyCode)) allPresetKeysHeld = false;
                         }
                         else
                         {
@@ -1413,7 +1417,13 @@ public class CrosshairRenderer : Graphic
                     text.text = KeybindToString(presetKeybinds[i]);
                 }
             }
+            // Also update hold toggles
+            if (presetHoldToggles != null && i < presetHoldToggles.Length && presetHoldToggles[i] != null)
+            {
+                presetHoldToggles[i].isOn = presetHoldModes[i];
+            }
         }
+        // Also update main UI toggle keybind button if you have one (optional)
     }
 
     private void LoadPresetKeybindsFromStorage()
@@ -1422,14 +1432,17 @@ public class CrosshairRenderer : Graphic
         {
             string keybindKey = $"PresetKeybind_{i}";
             string holdKey = $"PresetHold_{i}";
-            
             if (PlayerPrefs.HasKey(keybindKey))
             {
                 string keybindString = PlayerPrefs.GetString(keybindKey);
                 presetKeybinds[i] = ParseKeybindString(keybindString);
             }
-            
             presetHoldModes[i] = PlayerPrefs.GetInt(holdKey, 0) == 1;
+        }
+        // Load main UI toggle keybind
+        if (PlayerPrefs.HasKey("UIToggleKeybind"))
+        {
+            currentKeybind = ParseKeybindString(PlayerPrefs.GetString("UIToggleKeybind"));
         }
     }
 
@@ -1439,10 +1452,11 @@ public class CrosshairRenderer : Graphic
         {
             string keybindKey = $"PresetKeybind_{i}";
             string holdKey = $"PresetHold_{i}";
-            
             PlayerPrefs.SetString(keybindKey, KeybindToString(presetKeybinds[i]));
             PlayerPrefs.SetInt(holdKey, presetHoldModes[i] ? 1 : 0);
         }
+        // Save main UI toggle keybind
+        PlayerPrefs.SetString("UIToggleKeybind", KeybindToString(currentKeybind));
         PlayerPrefs.Save();
     }
 
@@ -1535,8 +1549,8 @@ public class CrosshairRenderer : Graphic
     private System.Collections.IEnumerator CaptureCrosshairScreenshotWithCode()
     {
         yield return new WaitForEndOfFrame();
-        int screenWidth = Screen.width;
-        int screenHeight = Screen.height;
+        int screenWidth = UnityEngine.Screen.width;
+        int screenHeight = UnityEngine.Screen.height;
         int captureSize = 256;
         int x = (screenWidth - captureSize) / 2;
         int y = (screenHeight - captureSize) / 2;
@@ -1661,13 +1675,52 @@ public class CrosshairRenderer : Graphic
 
     public void LoadCrosshairCode()
     {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        // Try to get file from clipboard
+        try
+        {
+            if (Clipboard.ContainsFileDropList())
+            {
+                var files = Clipboard.GetFileDropList();
+                if (files != null && files.Count > 0)
+                {
+                    string filePath = files[0];
+                    string fileName = Path.GetFileName(filePath);
+                    if (fileName.StartsWith("Crosshair_") && fileName.EndsWith(".png"))
+                    {
+                        string hash = fileName.Substring(10, fileName.Length - 14); // between _ and .png
+                        string codePath = Path.Combine(Path.GetDirectoryName(filePath), $"Crosshair_{hash}.txt");
+                        if (File.Exists(codePath))
+                        {
+                            string loadedCode = File.ReadAllText(codePath);
+                            if (!string.IsNullOrEmpty(loadedCode))
+                            {
+                                presets[currentPresetIndex] = loadedCode;
+                                SavePresetToStorage(currentPresetIndex);
+                                LoadCrosshairFromCode(loadedCode);
+                                Debug.Log($"Preset {currentPresetIndex + 1} loaded from image file: {fileName}");
+                                return;
+                            }
+                        }
+                        Debug.LogWarning($"No code file found for image: {fileName}");
+                        return;
+                    }
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"Clipboard file check failed: {e.Message}");
+        }
+#endif
+        // Fallback: use text clipboard
         string code = GUIUtility.systemCopyBuffer;
         if (string.IsNullOrEmpty(code))
         {
             Debug.LogWarning("No code in clipboard to load");
             return;
         }
-        // Check if clipboard is an image filename like Crosshair_{hash}.png
+        // Check if clipboard is an image filename like Crosshair_{hash}.png (for text clipboard fallback)
         if (code.StartsWith("Crosshair_") && code.EndsWith(".png"))
         {
             string hash = code.Substring(10, code.Length - 14); // between _ and .png
@@ -1782,6 +1835,17 @@ public class CrosshairRenderer : Graphic
         float f = 0f;
         float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f);
         return f;
+    }
+
+    public void ClearAllPresetKeybinds()
+    {
+        for (int i = 0; i < PRESET_COUNT; i++)
+        {
+            presetKeybinds[i].Clear();
+            presetHoldModes[i] = false;
+        }
+        SavePresetKeybindsToStorage();
+        UpdatePresetKeybindButtonTexts();
     }
 
 
