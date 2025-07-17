@@ -24,7 +24,7 @@ MonoBehaviour:
   m_MinSize: {x: 400, y: 100}
   m_MaxSize: {x: 32384, y: 16192}
   vertical: 0
-  controlID: 2041
+  controlID: 9499
   draggingID: 0
 --- !u!114 &2
 MonoBehaviour:
@@ -99,7 +99,7 @@ MonoBehaviour:
     m_HSlider: 0
     m_VSlider: 0
     m_IgnoreScrollWheelUntilClicked: 0
-    m_EnableMouseInput: 0
+    m_EnableMouseInput: 1
     m_EnableSliderZoomHorizontal: 0
     m_EnableSliderZoomVertical: 0
     m_UniformScale: 1
@@ -154,7 +154,7 @@ MonoBehaviour:
   m_MinSize: {x: 300, y: 100}
   m_MaxSize: {x: 24288, y: 16192}
   vertical: 1
-  controlID: 2042
+  controlID: 9500
   draggingID: 0
 --- !u!114 &4
 MonoBehaviour:
@@ -181,7 +181,7 @@ MonoBehaviour:
   m_MinSize: {x: 300, y: 50}
   m_MaxSize: {x: 24288, y: 8096}
   vertical: 0
-  controlID: 2043
+  controlID: 9501
   draggingID: 0
 --- !u!114 &5
 MonoBehaviour:
@@ -249,8 +249,8 @@ MonoBehaviour:
   m_SceneHierarchy:
     m_TreeViewState:
       scrollPos: {x: 0, y: 0}
-      m_SelectedIDs: f09c0000
-      m_LastClickedID: 40176
+      m_SelectedIDs: 84970000
+      m_LastClickedID: 38788
       m_ExpandedIDs: 88e8ffffc8e8ffffeae9ffff0efbffff109a0000fc9b0000
       m_RenameOverlay:
         m_UserAcceptedRename: 0
@@ -896,9 +896,9 @@ MonoBehaviour:
   m_AudioPlay: 0
   m_DebugDrawModesUseInteractiveLightBakingData: 0
   m_Position:
-    m_Target: {x: 4.8448524, y: -2.2326622, z: 0.018891277}
+    m_Target: {x: 5.981003, y: 0.62691873, z: 0.066666044}
     speed: 2
-    m_Value: {x: 4.8448524, y: -2.2326622, z: 0.018891277}
+    m_Value: {x: 5.981003, y: 0.62691873, z: 0.066666044}
   m_RenderMode: 0
   m_CameraMode:
     drawMode: 0
@@ -948,9 +948,9 @@ MonoBehaviour:
     speed: 2
     m_Value: {x: 0, y: 0, z: 0, w: 1}
   m_Size:
-    m_Target: 8.296649
+    m_Target: 3.5004568
     speed: 2
-    m_Value: 8.296649
+    m_Value: 3.5004568
   m_Ortho:
     m_Target: 1
     speed: 2
@@ -1359,8 +1359,8 @@ MonoBehaviour:
     y: 0
     width: 548
     height: 813.3333
-  m_MinSize: {x: 275, y: 50}
-  m_MaxSize: {x: 4000, y: 4000}
+  m_MinSize: {x: 276, y: 76}
+  m_MaxSize: {x: 4001, y: 4026}
   m_ActualView: {fileID: 16}
   m_Panes:
   - {fileID: 16}

@@ -123,6 +123,8 @@ public class CrosshairRenderer : Graphic
     public UnityEngine.UI.Button saveCodeButton;
     public UnityEngine.UI.Button loadCodeButton;
     public UnityEngine.UI.Button generateImageButton;
+    public UnityEngine.UI.Button clearButton;
+    public TMP_Dropdown presetDropdown;
 
     [Header("Snapping")]
     public Toggle snapRotationToggle;
@@ -131,6 +133,12 @@ public class CrosshairRenderer : Graphic
     [Header("Keybinds")]
     public UnityEngine.UI.Button keybindRecordButton;
     public GameObject uiRoot; // Assign your UI root GameObject here
+    
+    [Header("Preset Keybinds")]
+    public Toggle presetKeybindsToggle;
+    public GameObject presetKeybindsPanel;
+    public UnityEngine.UI.Button[] presetKeybindButtons = new UnityEngine.UI.Button[5];
+    public Toggle[] presetHoldToggles = new Toggle[5];
 
     private List<KeyCode> currentKeybind = new List<KeyCode> { KeyCode.F2 }; // Default: F2 (Fn+F2 is hardware, so use F2)
     private bool recordingKeybind = false;
@@ -144,6 +152,22 @@ public class CrosshairRenderer : Graphic
 
     private enum TabType { Frame, Hair, Dot }
     private TabType currentTab = TabType.Frame;
+
+    // --- Preset System ---
+    private const int PRESET_COUNT = 5;
+    private string[] presets = new string[PRESET_COUNT];
+    private int currentPresetIndex = 0;
+
+    // --- Preset Keybind System ---
+    private List<KeyCode>[] presetKeybinds = new List<KeyCode>[PRESET_COUNT];
+    private bool[] presetHoldModes = new bool[PRESET_COUNT];
+    private bool[] presetKeybindWasHeld = new bool[PRESET_COUNT];
+    private int[] presetReturnIndex = new int[PRESET_COUNT]; // For hold mode: remember which preset to return to
+    private bool recordingPresetKeybind = false;
+    private int recordingPresetIndex = -1;
+    private HashSet<KeyCode> presetPressedKeys = new HashSet<KeyCode>();
+    private List<KeyCode> presetLastPressedKeys = new List<KeyCode>();
+    private float presetKeybindReleaseTimer = 0f;
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {
@@ -332,6 +356,13 @@ public class CrosshairRenderer : Graphic
         if (saveCodeButton) saveCodeButton.onClick.AddListener(SaveCrosshairCode);
         if (loadCodeButton) loadCodeButton.onClick.AddListener(LoadCrosshairCode);
         if (generateImageButton) generateImageButton.onClick.AddListener(GenerateAndOpenImage);
+        if (clearButton) clearButton.onClick.AddListener(ClearToDefaults);
+        
+        // Setup preset system
+        SetupPresetSystem();
+        
+        // Setup preset keybind system
+        SetupPresetKeybindSystem();
     }
 
     void Update()
@@ -369,6 +400,44 @@ public class CrosshairRenderer : Graphic
                 keybindReleaseTimer = 0f;
             }
         }
+        else if (recordingPresetKeybind)
+        {
+            // Preset keybind recording
+            foreach (var key in SystemInput.VK_KeyCodes.Keys)
+            {
+                if (Input.GetKeyDown(key))
+                    presetPressedKeys.Add(key);
+                if (Input.GetKeyUp(key))
+                    presetPressedKeys.Remove(key);
+            }
+            // Track the last non-empty set of pressed keys
+            if (presetPressedKeys.Count > 0)
+            {
+                presetLastPressedKeys = new List<KeyCode>(presetPressedKeys);
+                presetKeybindReleaseTimer = 0f;
+                if (presetKeybindButtons[recordingPresetIndex] != null)
+                {
+                    presetKeybindButtons[recordingPresetIndex].GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(presetLastPressedKeys);
+                }
+            }
+            // If no keys are pressed, start grace timer
+            if (presetPressedKeys.Count == 0 && presetLastPressedKeys.Count > 0)
+            {
+                presetKeybindReleaseTimer += Time.unscaledDeltaTime;
+                if (presetKeybindReleaseTimer >= keybindReleaseGrace)
+                {
+                    presetKeybinds[recordingPresetIndex] = new List<KeyCode>(presetLastPressedKeys);
+                    recordingPresetKeybind = false;
+                    recordingPresetIndex = -1;
+                    UpdatePresetKeybindButtonTexts();
+                    SavePresetKeybindsToStorage();
+                }
+            }
+            else if (presetPressedKeys.Count > 0)
+            {
+                presetKeybindReleaseTimer = 0f;
+            }
+        }
         else
         {
             // Manual cooldown-based keybind detection
@@ -388,6 +457,48 @@ public class CrosshairRenderer : Graphic
             else
             {
                 keybindWasHeld = false;
+            }
+            
+            // Preset keybind detection
+            for (int i = 0; i < PRESET_COUNT; i++)
+            {
+                if (presetKeybinds[i].Count > 0)
+                {
+                    bool allPresetKeysHeld = true;
+                    foreach (var k in presetKeybinds[i])
+                    {
+                        if (!SystemInput.GetKey(k)) allPresetKeysHeld = false;
+                    }
+                    
+                    if (allPresetKeysHeld)
+                    {
+                        if (!presetKeybindWasHeld[i])
+                        {
+                            // Activate preset
+                            if (presetHoldModes[i])
+                            {
+                                // Hold mode: remember current preset and switch to target
+                                presetReturnIndex[i] = currentPresetIndex;
+                                SwitchToPreset(i);
+                            }
+                            else
+                            {
+                                // Toggle mode: just switch to target
+                                SwitchToPreset(i);
+                            }
+                            presetKeybindWasHeld[i] = true;
+                        }
+                    }
+                    else
+                    {
+                        if (presetKeybindWasHeld[i] && presetHoldModes[i])
+                        {
+                            // Hold mode: return to original preset
+                            SwitchToPreset(presetReturnIndex[i]);
+                        }
+                        presetKeybindWasHeld[i] = false;
+                    }
+                }
             }
         }
     }
@@ -840,28 +951,117 @@ public class CrosshairRenderer : Graphic
         }
     }
 
-    private void ShowTab(TabType type)
+    private void OnApplicationQuit()
     {
-        currentTab = type;
-        SetTabActive(frameTabRoot, type == TabType.Frame);
-        SetTabActive(hairTabRoot, type == TabType.Hair);
-        SetTabActive(dotTabRoot, type == TabType.Dot);
-        // (Optional: visually highlight selected button here)
+        // Save current crosshair to active preset before quitting
+        presets[currentPresetIndex] = GenerateCrosshairCode();
+        SavePresetToStorage(currentPresetIndex);
+        
+        // Save all presets to ensure nothing is lost
+        for (int i = 0; i < PRESET_COUNT; i++)
+        {
+            SavePresetToStorage(i);
+        }
+        
+        // Save preset keybinds
+        SavePresetKeybindsToStorage();
+        
+        Debug.Log("All presets and keybinds saved before application quit");
     }
 
-    private void SetTabActive(GameObject tabRoot, bool active)
+    // --- Preset System Methods ---
+    private void SetupPresetSystem()
     {
-        if (tabRoot == null) return;
-        tabRoot.SetActive(active);
-        var groups = tabRoot.GetComponentsInChildren<CanvasGroup>(true);
-        foreach (var cg in groups)
+        // Initialize preset dropdown
+        if (presetDropdown != null)
         {
-            cg.interactable = active;
-            cg.blocksRaycasts = active;
+            presetDropdown.ClearOptions();
+            var options = new List<string>();
+            for (int i = 0; i < PRESET_COUNT; i++)
+            {
+                options.Add($"Preset {i + 1}");
+            }
+            presetDropdown.AddOptions(options);
+            presetDropdown.value = currentPresetIndex;
+            presetDropdown.onValueChanged.AddListener(OnPresetChanged);
+        }
+        
+        // Load presets from PlayerPrefs or initialize with defaults
+        LoadPresetsFromStorage();
+        
+        // Load the first preset automatically
+        LoadCrosshairFromCode(presets[currentPresetIndex]);
+        Debug.Log($"Loaded Preset {currentPresetIndex + 1} on startup");
+    }
+
+    private void LoadPresetsFromStorage()
+    {
+        for (int i = 0; i < PRESET_COUNT; i++)
+        {
+            string key = $"CrosshairPreset_{i}";
+            if (PlayerPrefs.HasKey(key))
+            {
+                presets[i] = PlayerPrefs.GetString(key);
+                Debug.Log($"Loaded Preset {i + 1} from storage");
+            }
+            else
+            {
+                presets[i] = GenerateCrosshairCode();
+                PlayerPrefs.SetString(key, presets[i]);
+                Debug.Log($"Initialized Preset {i + 1} with defaults");
+            }
+        }
+        PlayerPrefs.Save();
+    }
+
+    private void SavePresetToStorage(int presetIndex)
+    {
+        string key = $"CrosshairPreset_{presetIndex}";
+        PlayerPrefs.SetString(key, presets[presetIndex]);
+        PlayerPrefs.Save();
+        Debug.Log($"Saved Preset {presetIndex + 1} to storage");
+    }
+
+    private void OnPresetChanged(int newIndex)
+    {
+        // Save current crosshair to old preset before switching
+        presets[currentPresetIndex] = GenerateCrosshairCode();
+        SavePresetToStorage(currentPresetIndex);
+        
+        // Update current preset index
+        currentPresetIndex = newIndex;
+        
+        // Load new preset
+        LoadCrosshairFromCode(presets[currentPresetIndex]);
+        
+        Debug.Log($"Saved Preset {currentPresetIndex + 1}, switched to Preset {newIndex + 1}");
+    }
+
+    private void SwitchToPreset(int presetIndex)
+    {
+        if (presetIndex >= 0 && presetIndex < PRESET_COUNT)
+        {
+            // Save current crosshair to current preset
+            presets[currentPresetIndex] = GenerateCrosshairCode();
+            SavePresetToStorage(currentPresetIndex);
+            
+            // Update current preset index
+            currentPresetIndex = presetIndex;
+            
+            // Update dropdown to match
+            if (presetDropdown != null)
+            {
+                presetDropdown.value = currentPresetIndex;
+            }
+            
+            // Load new preset
+            LoadCrosshairFromCode(presets[currentPresetIndex]);
+            
+            Debug.Log($"Switched to Preset {presetIndex + 1} via keybind");
         }
     }
 
-    public void SaveCrosshairCode()
+    private string GenerateCrosshairCode()
     {
         // Frame section
         string frameSection = string.Join(",",
@@ -900,9 +1100,276 @@ public class CrosshairRenderer : Graphic
             dotRotation.ToString("F3"),
             dotHue.ToString("F3"), dotSaturation.ToString("F3"), dotValue.ToString("F3")
         );
-        string code = frameSection + ";" + hairsSection + ";" + dotSection;
-        GUIUtility.systemCopyBuffer = code;
-        Debug.Log($"Crosshair code copied to clipboard: {code}");
+        return frameSection + ";" + hairsSection + ";" + dotSection;
+    }
+
+    private void LoadCrosshairFromCode(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return;
+        string[] sections = code.Split(';');
+        foreach (var section in sections)
+        {
+            string[] parts = section.Split(',');
+            if (parts.Length == 0) continue;
+            switch (parts[0])
+            {
+                case "F":
+                    if (parts.Length >= 14)
+                    {
+                        frameShape = CodeToFrameShape(parts[1]);
+                        frameFilled = parts[2] == "1";
+                        frameColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
+                        frameOpacity = ParseF(parts[7]);
+                        frameScale = ParseF(parts[8]);
+                        frameRotation = ParseF(parts[9]);
+                        frameThickness = ParseF(parts[10]);
+                        frameHue = ParseF(parts[11]);
+                        frameSaturation = ParseF(parts[12]);
+                        frameValue = ParseF(parts[13]);
+                    }
+                    break;
+                case "H":
+                    if (parts.Length >= 17)
+                    {
+                        hairStyle = CodeToHairStyle(parts[1]);
+                        hairCount = int.Parse(parts[2]);
+                        customAngle = ParseF(parts[3]);
+                        hairThickness = ParseF(parts[4]);
+                        hairLength = ParseF(parts[5]);
+                        hairColor = new Color(ParseF(parts[6]), ParseF(parts[7]), ParseF(parts[8]), ParseF(parts[9]));
+                        hairOpacity = ParseF(parts[10]);
+                        hairsRotation = ParseF(parts[11]);
+                        hairHue = ParseF(parts[12]);
+                        hairSaturation = ParseF(parts[13]);
+                        hairValue = ParseF(parts[14]);
+                        if (hairsExtendPastFrameToggle != null)
+                            hairsExtendPastFrameToggle.isOn = parts[15] == "1";
+                    }
+                    break;
+                case "D":
+                    if (parts.Length >= 13)
+                    {
+                        dotShape = CodeToFrameShape(parts[1]);
+                        dotFilled = parts[2] == "1";
+                        dotColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
+                        dotOpacity = ParseF(parts[7]);
+                        dotScale = ParseF(parts[8]);
+                        dotRotation = ParseF(parts[9]);
+                        dotHue = ParseF(parts[10]);
+                        dotSaturation = ParseF(parts[11]);
+                        dotValue = ParseF(parts[12]);
+                    }
+                    break;
+            }
+        }
+        SetVerticesDirty();
+        UpdateUIFromValues();
+    }
+
+    private void UpdateUIFromValues()
+    {
+        // Update UI sliders and dropdowns to match current values
+        if (frameShapeDropdown) frameShapeDropdown.value = (int)frameShape;
+        if (frameFilledToggle) frameFilledToggle.isOn = frameFilled;
+        if (frameOpacitySlider) frameOpacitySlider.value = frameOpacity;
+        if (frameScaleSlider) frameScaleSlider.value = frameScale;
+        if (frameRotationSlider) frameRotationSlider.value = frameRotation;
+        if (frameThicknessSlider) frameThicknessSlider.value = frameThickness;
+        if (frameColorSlider) frameColorSlider.value = frameHue;
+        if (frameSaturationSlider) frameSaturationSlider.value = frameSaturation;
+        if (frameValueSlider) frameValueSlider.value = frameValue;
+        
+        if (hairStyleDropdown) hairStyleDropdown.value = (int)hairStyle;
+        if (hairCountSlider) hairCountSlider.value = hairCount;
+        if (customAngleSlider) customAngleSlider.value = customAngle;
+        if (hairThicknessSlider) hairThicknessSlider.value = hairThickness;
+        if (hairLengthSlider) hairLengthSlider.value = hairLength;
+        if (hairsRotationSlider) hairsRotationSlider.value = hairsRotation;
+        if (hairColorSlider) hairColorSlider.value = hairHue;
+        if (hairSaturationSlider) hairSaturationSlider.value = hairSaturation;
+        if (hairValueSlider) hairValueSlider.value = hairValue;
+        if (hairOpacitySlider) hairOpacitySlider.value = hairOpacity;
+        
+        if (dotShapeDropdown) dotShapeDropdown.value = (int)dotShape;
+        if (dotFilledToggle) dotFilledToggle.isOn = dotFilled;
+        if (dotColorSlider) dotColorSlider.value = dotHue;
+        if (dotSaturationSlider) dotSaturationSlider.value = dotSaturation;
+        if (dotValueSlider) dotValueSlider.value = dotValue;
+        if (dotOpacitySlider) dotOpacitySlider.value = dotOpacity;
+        if (dotScaleSlider) dotScaleSlider.value = dotScale;
+        if (dotRotationSlider) dotRotationSlider.value = dotRotation;
+        
+        UpdateHairUI();
+    }
+
+    // --- Preset Keybind System Methods ---
+    private void SetupPresetKeybindSystem()
+    {
+        // Initialize preset keybinds
+        for (int i = 0; i < PRESET_COUNT; i++)
+        {
+            presetKeybinds[i] = new List<KeyCode>();
+            presetHoldModes[i] = false;
+            presetKeybindWasHeld[i] = false;
+            presetReturnIndex[i] = 0;
+        }
+        
+        // Load preset keybinds from storage
+        LoadPresetKeybindsFromStorage();
+        
+        // Setup UI
+        if (presetKeybindsToggle != null)
+        {
+            presetKeybindsToggle.onValueChanged.AddListener(OnPresetKeybindsToggleChanged);
+        }
+        
+        if (presetKeybindButtons != null)
+        {
+            for (int i = 0; i < presetKeybindButtons.Length && i < PRESET_COUNT; i++)
+            {
+                int presetIndex = i; // Capture for lambda
+                if (presetKeybindButtons[i] != null)
+                {
+                    presetKeybindButtons[i].onClick.AddListener(() => StartPresetKeybindRecording(presetIndex));
+                }
+            }
+        }
+        
+        if (presetHoldToggles != null)
+        {
+            for (int i = 0; i < presetHoldToggles.Length && i < PRESET_COUNT; i++)
+            {
+                int presetIndex = i; // Capture for lambda
+                if (presetHoldToggles[i] != null)
+                {
+                    presetHoldToggles[i].onValueChanged.AddListener((value) => OnPresetHoldToggleChanged(presetIndex, value));
+                }
+            }
+        }
+        
+        UpdatePresetKeybindButtonTexts();
+    }
+
+    private void OnPresetKeybindsToggleChanged(bool isOn)
+    {
+        if (presetKeybindsPanel != null)
+        {
+            presetKeybindsPanel.SetActive(isOn);
+        }
+    }
+
+    private void StartPresetKeybindRecording(int presetIndex)
+    {
+        recordingPresetKeybind = true;
+        recordingPresetIndex = presetIndex;
+        presetPressedKeys.Clear();
+        presetLastPressedKeys.Clear();
+        presetKeybindReleaseTimer = 0f;
+        
+        if (presetKeybindButtons[presetIndex] != null)
+        {
+            presetKeybindButtons[presetIndex].GetComponentInChildren<TMPro.TMP_Text>().text = "Press keys...";
+        }
+    }
+
+    private void OnPresetHoldToggleChanged(int presetIndex, bool isHold)
+    {
+        presetHoldModes[presetIndex] = isHold;
+        SavePresetKeybindsToStorage();
+    }
+
+    private void UpdatePresetKeybindButtonTexts()
+    {
+        for (int i = 0; i < presetKeybindButtons.Length && i < PRESET_COUNT; i++)
+        {
+            if (presetKeybindButtons[i] != null)
+            {
+                var text = presetKeybindButtons[i].GetComponentInChildren<TMPro.TMP_Text>();
+                if (text != null)
+                {
+                    text.text = KeybindToString(presetKeybinds[i]);
+                }
+            }
+        }
+    }
+
+    private void LoadPresetKeybindsFromStorage()
+    {
+        for (int i = 0; i < PRESET_COUNT; i++)
+        {
+            string keybindKey = $"PresetKeybind_{i}";
+            string holdKey = $"PresetHold_{i}";
+            
+            if (PlayerPrefs.HasKey(keybindKey))
+            {
+                string keybindString = PlayerPrefs.GetString(keybindKey);
+                presetKeybinds[i] = ParseKeybindString(keybindString);
+            }
+            
+            presetHoldModes[i] = PlayerPrefs.GetInt(holdKey, 0) == 1;
+        }
+    }
+
+    private void SavePresetKeybindsToStorage()
+    {
+        for (int i = 0; i < PRESET_COUNT; i++)
+        {
+            string keybindKey = $"PresetKeybind_{i}";
+            string holdKey = $"PresetHold_{i}";
+            
+            PlayerPrefs.SetString(keybindKey, KeybindToString(presetKeybinds[i]));
+            PlayerPrefs.SetInt(holdKey, presetHoldModes[i] ? 1 : 0);
+        }
+        PlayerPrefs.Save();
+    }
+
+    private List<KeyCode> ParseKeybindString(string keybindString)
+    {
+        var keybind = new List<KeyCode>();
+        if (!string.IsNullOrEmpty(keybindString))
+        {
+            string[] keys = keybindString.Split('+');
+            foreach (string key in keys)
+            {
+                if (System.Enum.TryParse(key.Trim(), out KeyCode keyCode))
+                {
+                    keybind.Add(keyCode);
+                }
+            }
+        }
+        return keybind;
+    }
+
+    private void ShowTab(TabType type)
+    {
+        currentTab = type;
+        SetTabActive(frameTabRoot, type == TabType.Frame);
+        SetTabActive(hairTabRoot, type == TabType.Hair);
+        SetTabActive(dotTabRoot, type == TabType.Dot);
+        // (Optional: visually highlight selected button here)
+    }
+
+    private void SetTabActive(GameObject tabRoot, bool active)
+    {
+        if (tabRoot == null) return;
+        tabRoot.SetActive(active);
+        var groups = tabRoot.GetComponentsInChildren<CanvasGroup>(true);
+        foreach (var cg in groups)
+        {
+            cg.interactable = active;
+            cg.blocksRaycasts = active;
+        }
+    }
+
+    public void SaveCrosshairCode()
+    {
+        // Save current crosshair to active preset
+        presets[currentPresetIndex] = GenerateCrosshairCode();
+        SavePresetToStorage(currentPresetIndex);
+        
+        // Copy to clipboard
+        GUIUtility.systemCopyBuffer = presets[currentPresetIndex];
+        Debug.Log($"Preset {currentPresetIndex + 1} saved and copied to clipboard: {presets[currentPresetIndex]}");
     }
 
     public void GenerateAndOpenImage()
@@ -1049,65 +1516,63 @@ public class CrosshairRenderer : Graphic
 
     public void LoadCrosshairCode()
     {
+        // Load from clipboard into active preset
         string code = GUIUtility.systemCopyBuffer;
-        if (string.IsNullOrEmpty(code)) return;
-        string[] sections = code.Split(';');
-        foreach (var section in sections)
+        if (string.IsNullOrEmpty(code)) 
         {
-            string[] parts = section.Split(',');
-            if (parts.Length == 0) continue;
-            switch (parts[0])
-            {
-                case "F":
-                    if (parts.Length >= 14)
-                    {
-                        frameShape = CodeToFrameShape(parts[1]);
-                        frameFilled = parts[2] == "1";
-                        frameColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
-                        frameOpacity = ParseF(parts[7]);
-                        frameScale = ParseF(parts[8]);
-                        frameRotation = ParseF(parts[9]);
-                        frameThickness = ParseF(parts[10]);
-                        frameHue = ParseF(parts[11]);
-                        frameSaturation = ParseF(parts[12]);
-                        frameValue = ParseF(parts[13]);
-                    }
-                    break;
-                case "H":
-                    if (parts.Length >= 17)
-                    {
-                        hairStyle = CodeToHairStyle(parts[1]);
-                        hairCount = int.Parse(parts[2]);
-                        customAngle = ParseF(parts[3]);
-                        hairThickness = ParseF(parts[4]);
-                        hairLength = ParseF(parts[5]);
-                        hairColor = new Color(ParseF(parts[6]), ParseF(parts[7]), ParseF(parts[8]), ParseF(parts[9]));
-                        hairOpacity = ParseF(parts[10]);
-                        hairsRotation = ParseF(parts[11]);
-                        hairHue = ParseF(parts[12]);
-                        hairSaturation = ParseF(parts[13]);
-                        hairValue = ParseF(parts[14]);
-                        if (hairsExtendPastFrameToggle != null)
-                            hairsExtendPastFrameToggle.isOn = parts[15] == "1";
-                    }
-                    break;
-                case "D":
-                    if (parts.Length >= 13)
-                    {
-                        dotShape = CodeToFrameShape(parts[1]);
-                        dotFilled = parts[2] == "1";
-                        dotColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
-                        dotOpacity = ParseF(parts[7]);
-                        dotScale = ParseF(parts[8]);
-                        dotRotation = ParseF(parts[9]);
-                        dotHue = ParseF(parts[10]);
-                        dotSaturation = ParseF(parts[11]);
-                        dotValue = ParseF(parts[12]);
-                    }
-                    break;
-            }
+            Debug.LogWarning("No code in clipboard to load");
+            return;
         }
+        
+        // Save to active preset and load it
+        presets[currentPresetIndex] = code;
+        SavePresetToStorage(currentPresetIndex);
+        LoadCrosshairFromCode(code);
+        Debug.Log($"Preset {currentPresetIndex + 1} loaded from clipboard: {code}");
+    }
+
+    public void ClearToDefaults()
+    {
+        // Reset to default values (same as Awake)
+        frameShape = CrosshairShape.Circle;
+        frameFilled = false;
+        frameColor = Color.red;
+        frameOpacity = 1f;
+        frameScale = 0.9f;
+        frameRotation = 0f;
+        frameThickness = 5f;
+        
+        hairStyle = HairStyle.Even;
+        hairCount = 4;
+        customAngle = 0f;
+        hairThickness = 5.5f;
+        hairLength = 24f;
+        hairColor = Color.red;
+        hairOpacity = 1f;
+        hairsRotation = 0f;
+        
+        dotShape = CrosshairShape.Square;
+        dotFilled = true;
+        dotColor = Color.red;
+        dotOpacity = 1f;
+        dotScale = 0.9f;
+        dotRotation = 45f;
+        
+        frameHue = 1f;
+        frameSaturation = 1f;
+        frameValue = 1f;
+        hairHue = 1f;
+        hairSaturation = 1f;
+        hairValue = 1f;
+        dotHue = 1f;
+        dotSaturation = 1f;
+        dotValue = 1f;
+        
+        // Update UI to match
+        UpdateUIFromValues();
         SetVerticesDirty();
+        
+        Debug.Log("Crosshair reset to defaults");
     }
 
     private string FrameShapeToCode(CrosshairShape shape)
