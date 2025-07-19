@@ -8,6 +8,7 @@ using UnityEngine.EventSystems;
 using System.Linq; // Added for .Any() and .Select()
 using System.Security.Cryptography;
 using System.Text;
+//using Window;
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
 using System.Windows.Forms;
 #endif
@@ -550,20 +551,21 @@ public class CrosshairRenderer : Graphic
         }
         else
         {
-            // Manual cooldown-based keybind detection
+            // Manual cooldown-based keybind detection (always use SystemInput for global keybinds)
             bool allHeld = currentKeybind.Count > 0;
             foreach (var k in currentKeybind)
             {
                 if (k.specialKey == SpecialKey.None)
                 {
-                    if (!Input.GetKey(k.keyCode)) allHeld = false;
+                    if (!SystemInput.GetKey(k.keyCode)) allHeld = false;
                 }
                 else
                 {
                     // Mouse/special key detection
-                    if (k.specialKey == SpecialKey.MouseLeft && !Input.GetMouseButton(0)) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseRight && !Input.GetMouseButton(1)) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseMiddle && !Input.GetMouseButton(2)) allHeld = false;
+                    if (k.specialKey == SpecialKey.MouseLeft && !SystemInput.GetMouseButton(0)) allHeld = false;
+                    if (k.specialKey == SpecialKey.MouseRight && !SystemInput.GetMouseButton(1)) allHeld = false;
+                    if (k.specialKey == SpecialKey.MouseMiddle && !SystemInput.GetMouseButton(2)) allHeld = false;
+                    // Mouse wheel up/down: not supported by SystemInput, fallback to Input
                     if (k.specialKey == SpecialKey.MouseWheelUp && Input.mouseScrollDelta.y <= 0.01f) allHeld = false;
                     if (k.specialKey == SpecialKey.MouseWheelDown && Input.mouseScrollDelta.y >= -0.01f) allHeld = false;
                 }
@@ -596,13 +598,14 @@ public class CrosshairRenderer : Graphic
                     {
                         if (k.specialKey == SpecialKey.None)
                         {
-                            if (!Input.GetKey(k.keyCode)) allPresetKeysHeld = false;
+                            if (!SystemInput.GetKey(k.keyCode)) allPresetKeysHeld = false;
                         }
                         else
                         {
-                            if (k.specialKey == SpecialKey.MouseLeft && !Input.GetMouseButton(0)) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseRight && !Input.GetMouseButton(1)) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseMiddle && !Input.GetMouseButton(2)) allPresetKeysHeld = false;
+                            if (k.specialKey == SpecialKey.MouseLeft && !SystemInput.GetMouseButton(0)) allPresetKeysHeld = false;
+                            if (k.specialKey == SpecialKey.MouseRight && !SystemInput.GetMouseButton(1)) allPresetKeysHeld = false;
+                            if (k.specialKey == SpecialKey.MouseMiddle && !SystemInput.GetMouseButton(2)) allPresetKeysHeld = false;
+                            // Mouse wheel up/down: not supported by SystemInput, fallback to Input
                             if (k.specialKey == SpecialKey.MouseWheelUp && Input.mouseScrollDelta.y <= 0.01f) allPresetKeysHeld = false;
                             if (k.specialKey == SpecialKey.MouseWheelDown && Input.mouseScrollDelta.y >= -0.01f) allPresetKeysHeld = false;
                         }
