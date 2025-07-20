@@ -174,7 +174,7 @@ public class CrosshairRenderer : Graphic
             default: return "";
         }
     }
-
+//
     // Keybinds can now be a mix of KeyCode and SpecialKey
     private struct KeybindEntry
     {
@@ -300,6 +300,7 @@ public class CrosshairRenderer : Graphic
                 frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
                 SetVerticesDirty();
                 ShowColorPreview(frameColorPreviewObj, frameColorPreviewRenderer, frameColor, PreviewType.Frame);
+                UpdateSaturationReferenceColor(frameSaturationRefRenderer, frameHue);
             });
         }
         if (frameSaturationSlider) frameSaturationSlider.onValueChanged.AddListener(val => {
@@ -334,6 +335,7 @@ public class CrosshairRenderer : Graphic
                 hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
                 SetVerticesDirty();
                 ShowColorPreview(hairColorPreviewObj, hairColorPreviewRenderer, hairColor, PreviewType.Hair);
+                UpdateSaturationReferenceColor(hairSaturationRefRenderer, hairHue);
             });
         }
         if (hairSaturationSlider) hairSaturationSlider.onValueChanged.AddListener(val => {
@@ -361,6 +363,7 @@ public class CrosshairRenderer : Graphic
                 dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
                 SetVerticesDirty();
                 ShowColorPreview(dotColorPreviewObj, dotColorPreviewRenderer, dotColor, PreviewType.Dot);
+                UpdateSaturationReferenceColor(dotSaturationRefRenderer, dotHue);
             });
         }
         if (dotSaturationSlider) dotSaturationSlider.onValueChanged.AddListener(val => {
@@ -647,7 +650,7 @@ public class CrosshairRenderer : Graphic
             }
         }
     }
-
+//
     void StartKeybindRecording()
     {
         recordingKeybind = true;
@@ -981,9 +984,49 @@ public class CrosshairRenderer : Graphic
     void ShowReferenceImage(GameObject refObj, SpriteRenderer refRenderer, RefType type)
     {
         if (refObj == null || refRenderer == null) return;
+        
         // Only set alpha to 1, keep RGB as is
         var c = refRenderer.color;
-        refRenderer.color = new Color(c.r, c.g, c.b, 1f);
+        
+        // Apply color filter only to saturation references
+        if (type == RefType.FrameSaturation || type == RefType.HairSaturation || type == RefType.DotSaturation)
+        {
+            // Get the current hue for this component
+            float currentHue = 0f;
+            switch (type)
+            {
+                case RefType.FrameSaturation:
+                    currentHue = frameHue;
+                    break;
+                case RefType.HairSaturation:
+                    currentHue = hairHue;
+                    break;
+                case RefType.DotSaturation:
+                    currentHue = dotHue;
+                    break;
+            }
+            
+            // Convert the current color to HSV
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            
+            // If the color is saturated (not grey), apply the current hue
+            if (s > 0.1f) // Threshold to detect if it's not grey
+            {
+                Color newColor = Color.HSVToRGB(currentHue, s, v);
+                refRenderer.color = new Color(newColor.r, newColor.g, newColor.b, 1f);
+            }
+            else
+            {
+                // Keep grey colors unchanged
+                refRenderer.color = new Color(c.r, c.g, c.b, 1f);
+            }
+        }
+        else
+        {
+            // For value references, keep original behavior
+            refRenderer.color = new Color(c.r, c.g, c.b, 1f);
+        }
+        
         refObj.SetActive(true);
         // Start fade coroutine
         switch (type)
@@ -1871,6 +1914,25 @@ public class CrosshairRenderer : Graphic
         }
         SavePresetKeybindsToStorage();
         UpdatePresetKeybindButtonTexts();
+    }
+
+    private void UpdateSaturationReferenceColor(SpriteRenderer refRenderer, float hue)
+    {
+        if (refRenderer == null) return;
+        
+        // Get the current color
+        Color currentColor = refRenderer.color;
+        
+        // Convert the current color to HSV
+        Color.RGBToHSV(currentColor, out float h, out float s, out float v);
+        
+        // If the color is saturated (not grey), apply the new hue
+        if (s > 0.1f) // Threshold to detect if it's not grey
+        {
+            Color newColor = Color.HSVToRGB(hue, s, v);
+            refRenderer.color = new Color(newColor.r, newColor.g, newColor.b, currentColor.a);
+        }
+        // Keep grey colors unchanged
     }
 
 
