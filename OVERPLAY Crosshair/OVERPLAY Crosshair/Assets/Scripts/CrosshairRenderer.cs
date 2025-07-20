@@ -78,6 +78,9 @@ public class CrosshairRenderer : Graphic
     public GameObject frameValueRefObj;
     private SpriteRenderer frameValueRefRenderer;
     public UnityEngine.UI.Button hideCrosshairButton;
+    public UnityEngine.UI.Image hideCrosshairButtonImage; // The Image component on the hide crosshair button
+    public Sprite crosshairVisibleSprite; // Sprite to show when crosshair is visible
+    public Sprite crosshairHiddenSprite; // Sprite to show when crosshair is hidden
 
     [Header("Hairs UI")]
     public TMP_Dropdown hairStyleDropdown;
@@ -398,6 +401,7 @@ public class CrosshairRenderer : Graphic
 
         if (hideCrosshairButton) hideCrosshairButton.onClick.AddListener(ToggleCrosshair);
         UpdateHideCrosshairButtonText();
+        UpdateHideCrosshairButtonSprite();
 
         if (saveCodeButton) saveCodeButton.onClick.AddListener(SaveCrosshairCode);
         if (loadCodeButton) loadCodeButton.onClick.AddListener(LoadCrosshairCode);
@@ -1080,6 +1084,7 @@ public class CrosshairRenderer : Graphic
             SetVerticesDirty();
         }
         UpdateHideCrosshairButtonText();
+        UpdateHideCrosshairButtonSprite();
     }
 
     private void UpdateHideCrosshairButtonText()
@@ -1089,6 +1094,23 @@ public class CrosshairRenderer : Graphic
             var text = hideCrosshairButton.GetComponentInChildren<TMPro.TMP_Text>();
             if (text)
                 text.text = crosshairHidden ? "Show Crosshair" : "Hide Crosshair";
+        }
+    }
+
+    private void UpdateHideCrosshairButtonSprite()
+    {
+        if (hideCrosshairButtonImage != null)
+        {
+            if (crosshairHidden)
+            {
+                if (crosshairHiddenSprite != null)
+                    hideCrosshairButtonImage.sprite = crosshairHiddenSprite;
+            }
+            else
+            {
+                if (crosshairVisibleSprite != null)
+                    hideCrosshairButtonImage.sprite = crosshairVisibleSprite;
+            }
         }
     }
 
