@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 00b5e1aad7cd6594abf1c125ca7c0965
+guid: 5b36b02e9962777469c94bee17ce0652
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -4473587103123604233
-    second: UI TAB_0
+      213: -1372644416634842712
+    second: 2025_07_19_0vh_Kleki_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: UI TAB_0
+      name: 2025_07_19_0vh_Kleki_0
       rect:
         serializedVersion: 2
-        x: 103
-        y: 189
-        width: 814
-        height: 641
+        x: 9
+        y: 10
+        width: 183
+        height: 179
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 7fc7c865b30aae1c0800000000000000
-      internalID: -4473587103123604233
+      spriteID: 8a19e87fc2363fce0800000000000000
+      internalID: -1372644416634842712
       vertices: []
       indices: 
       edges: []

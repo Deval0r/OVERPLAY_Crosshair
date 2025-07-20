@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: c21d0489ec883fb45bc63a3b40a7c75c
+guid: 6f36c1b2b9a5c064a9eee2a54b923090
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 3229156234127476532
-    second: UI BUTTON HUE 90_0
+      213: -1063412477642861249
+    second: 2025_07_19_0vb_Kleki_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: UI BUTTON HUE 90_0
+      name: 2025_07_19_0vb_Kleki_0
       rect:
         serializedVersion: 2
-        x: 4
-        y: 217
-        width: 1019
-        height: 584
+        x: 8
+        y: 9
+        width: 184
+        height: 183
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 43708637c7440dc20800000000000000
-      internalID: 3229156234127476532
+      spriteID: f35116c5cfffd31f0800000000000000
+      internalID: -1063412477642861249
       vertices: []
       indices: 
       edges: []

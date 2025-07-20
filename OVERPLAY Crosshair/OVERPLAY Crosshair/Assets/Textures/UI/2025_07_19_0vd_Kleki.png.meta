@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 45651511d6de5364fbb088b2e3283b03
+guid: 411a897b318c7d54aae53af022a22389
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6235214431124556107
-    second: UI PANEL HUE 90_0
+      213: -3120392042477367934
+    second: 2025_07_19_0vd_Kleki_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: UI PANEL HUE 90_0
+      name: 2025_07_19_0vd_Kleki_0
       rect:
         serializedVersion: 2
-        x: 26
-        y: 9
-        width: 972
-        height: 1006
+        x: 10
+        y: 12
+        width: 180
+        height: 177
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 5b67e6ea2811879a0800000000000000
-      internalID: -6235214431124556107
+      spriteID: 28d4e2c48f322b4d0800000000000000
+      internalID: -3120392042477367934
       vertices: []
       indices: 
       edges: []
