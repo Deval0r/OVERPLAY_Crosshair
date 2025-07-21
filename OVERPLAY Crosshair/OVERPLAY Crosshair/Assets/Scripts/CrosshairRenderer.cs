@@ -151,6 +151,15 @@ public class CrosshairRenderer : Graphic
     public Toggle[] presetHoldToggles = new Toggle[5];
     public UnityEngine.UI.Button clearAllPresetKeybindsButton; // Assign in Inspector
 
+    [Header("Tab Button Positions")] 
+    public Vector2 tabLeftPosition = new Vector2(-200, -40); // left and down
+    public Vector2 tabMiddlePosition = new Vector2(0, 0);    // center
+    public Vector2 tabRightPosition = new Vector2(200, 0);   // right
+    public Color tabHighlightColor = new Color(1f, 0.9f, 0.6f, 1f); // highlighted color
+    public Color tabNormalColor = Color.white; // normal color
+    public float tabHighlightScale = 0.023f; // 15% larger than normal
+    public float tabNormalScale = 0.02f;
+
     private enum SpecialKey
     {
         None,
@@ -217,6 +226,25 @@ public class CrosshairRenderer : Graphic
     private HashSet<KeyCode> presetPressedKeys = new HashSet<KeyCode>();
     private List<KeyCode> presetLastPressedKeys = new List<KeyCode>();
     private float presetKeybindReleaseTimer = 0f;
+
+    // --- Tab Button Animation State ---
+    private class TabButtonAnimState {
+        public Vector2 currentPos, targetPos;
+        public Color currentColor, targetColor;
+        public float currentScale, targetScale;
+        public RectTransform rt;
+        public Image img;
+        public TabButtonAnimState(UnityEngine.UI.Button btn) {
+            if (btn == null) return;
+            rt = btn.GetComponent<RectTransform>();
+            img = btn.GetComponent<Image>();
+            if (rt != null) currentPos = targetPos = rt.anchoredPosition;
+            if (img != null) currentColor = targetColor = img.color;
+            currentScale = targetScale = 0.02f; // default scale for your buttons
+        }
+    }
+    private TabButtonAnimState frameTabAnim, hairTabAnim, dotTabAnim;
+    public float tabLerpSpeed = 12f; // Higher = snappier
 
     protected override void OnPopulateMesh(VertexHelper vh)
     {
@@ -419,6 +447,27 @@ public class CrosshairRenderer : Graphic
 
         if (clearAllPresetKeybindsButton != null)
             clearAllPresetKeybindsButton.onClick.AddListener(ClearAllPresetKeybinds);
+
+        frameTabAnim = new TabButtonAnimState(frameTabButton);
+        hairTabAnim = new TabButtonAnimState(hairTabButton);
+        dotTabAnim = new TabButtonAnimState(dotTabButton);
+
+        // Immediately set tab button visuals to match the current tab (no lerp on first frame)
+        UpdateTabButtonVisuals(currentTab);
+        ApplyTabButtonAnimStateInstant(frameTabAnim);
+        ApplyTabButtonAnimStateInstant(hairTabAnim);
+        ApplyTabButtonAnimStateInstant(dotTabAnim);
+    }
+
+    private void ApplyTabButtonAnimStateInstant(TabButtonAnimState anim)
+    {
+        if (anim == null || anim.rt == null) return;
+        anim.currentPos = anim.targetPos;
+        anim.currentColor = anim.targetColor;
+        anim.currentScale = anim.targetScale;
+        anim.rt.anchoredPosition = anim.currentPos;
+        if (anim.img != null) anim.img.color = anim.currentColor;
+        anim.rt.localScale = Vector3.one * anim.currentScale;
     }
 
     void Update()
@@ -649,8 +698,24 @@ public class CrosshairRenderer : Graphic
                 }
             }
         }
+
+        // --- Tab Button Animation ---
+        AnimateTabButton(frameTabAnim);
+        AnimateTabButton(hairTabAnim);
+        AnimateTabButton(dotTabAnim);
     }
-//
+
+    private void AnimateTabButton(TabButtonAnimState anim)
+    {
+        if (anim == null || anim.rt == null) return;
+        anim.currentPos = Vector2.Lerp(anim.currentPos, anim.targetPos, Time.unscaledDeltaTime * tabLerpSpeed);
+        anim.currentColor = Color.Lerp(anim.currentColor, anim.targetColor, Time.unscaledDeltaTime * tabLerpSpeed);
+        anim.currentScale = Mathf.Lerp(anim.currentScale, anim.targetScale, Time.unscaledDeltaTime * tabLerpSpeed);
+        anim.rt.anchoredPosition = anim.currentPos;
+        if (anim.img != null) anim.img.color = anim.currentColor;
+        anim.rt.localScale = Vector3.one * anim.currentScale;
+    }
+
     void StartKeybindRecording()
     {
         recordingKeybind = true;
@@ -1571,7 +1636,25 @@ public class CrosshairRenderer : Graphic
         SetTabActive(frameTabRoot, type == TabType.Frame);
         SetTabActive(hairTabRoot, type == TabType.Hair);
         SetTabActive(dotTabRoot, type == TabType.Dot);
-        // (Optional: visually highlight selected button here)
+
+        // Move and highlight tab buttons
+        UpdateTabButtonVisuals(type);
+    }
+
+    private void UpdateTabButtonVisuals(TabType activeTab)
+    {
+        // Helper to set target position, color, and scale
+        void SetTab(TabButtonAnimState anim, UnityEngine.UI.Button btn, Vector2 pos, bool highlight)
+        {
+            if (anim == null || btn == null) return;
+            anim.targetPos = pos;
+            anim.targetColor = highlight ? tabHighlightColor : tabNormalColor;
+            anim.targetScale = highlight ? tabHighlightScale : tabNormalScale;
+            if (highlight && anim.rt != null) anim.rt.SetAsLastSibling();
+        }
+        SetTab(frameTabAnim, frameTabButton, activeTab == TabType.Frame ? tabLeftPosition : (activeTab == TabType.Hair ? tabMiddlePosition : tabRightPosition), activeTab == TabType.Frame);
+        SetTab(hairTabAnim, hairTabButton, activeTab == TabType.Hair ? tabLeftPosition : (activeTab == TabType.Dot ? tabMiddlePosition : tabRightPosition), activeTab == TabType.Hair);
+        SetTab(dotTabAnim, dotTabButton, activeTab == TabType.Dot ? tabLeftPosition : (activeTab == TabType.Frame ? tabMiddlePosition : tabRightPosition), activeTab == TabType.Dot);
     }
 
     private void SetTabActive(GameObject tabRoot, bool active)
