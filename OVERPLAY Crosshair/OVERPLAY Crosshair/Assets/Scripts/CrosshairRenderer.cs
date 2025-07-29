@@ -1,414 +1,392 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 using System.Collections.Generic;
 using System;
 using System.IO;
+using System.Globalization;
 using UnityEngine.EventSystems;
-using System.Linq; // Added for .Any() and .Select()
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-//using Window;
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-using System.Windows.Forms;
-#endif
 
-public enum CrosshairShape { Circle, Square, Triangle }
-public enum HairStyle { Even, Custom }
+public enum SpecialKey
+{
+    None,
+    MouseLeft,
+    MouseRight,
+    MouseMiddle,
+    MouseWheelUp,
+    MouseWheelDown
+}
 
-[RequireComponent(typeof(CanvasRenderer))]
+[System.Serializable]
+public class KeybindEntry
+{
+    public KeyCode keyCode = KeyCode.None;
+    public SpecialKey specialKey = SpecialKey.None;
+}
+
 public class CrosshairRenderer : Graphic
 {
-    // --- Crosshair Settings ---
-    // Frame
-    public CrosshairShape frameShape = CrosshairShape.Circle;
-    public bool frameFilled = false;
-    public Color frameColor = Color.red;
-    [Range(0, 1)] public float frameOpacity = 1f;
-    public float frameScale = 0.9f;
-    [Range(0, 360)] public float frameRotation = 0f;
-    public float frameThickness = 5f;
+    [Header("Crosshair Settings")]
+    public bool enableCrosshair = true;
+    public Color crosshairColor = Color.white;
+    public float crosshairThickness = 2f;
+    public float crosshairGap = 5f;
+    public float crosshairLength = 15f;
+    public bool enableOutline = true;
+    public Color outlineColor = Color.black;
+    public float outlineThickness = 1f;
+    public bool enableDot = true;
+    public Color dotColor = Color.white;
+    public float dotSize = 2f;
+    public bool dotOutline = true;
+    public Color dotOutlineColor = Color.black;
+    public float dotOutlineThickness = 1f;
+    public bool enableFrame = false;
+    public Color frameColor = Color.white;
+    public float frameThickness = 2f;
+    public float frameSize = 30f;
+    public bool frameOutline = true;
+    public Color frameOutlineColor = Color.black;
+    public float frameOutlineThickness = 1f;
+    public bool enableHairs = false;
+    public Color hairsColor = Color.white;
+    public float hairsThickness = 1f;
+    public float hairsLength = 50f;
+    public bool hairsOutline = true;
+    public Color hairsOutlineColor = Color.black;
+    public float hairsOutlineThickness = 1f;
+    public bool enableMovementError = false;
+    public float movementErrorAmount = 2f;
+    public float movementErrorDecay = 0.95f;
+    public bool enableFiringError = false;
+    public float firingErrorAmount = 5f;
+    public float firingErrorDecay = 0.9f;
+    public float frameRotation = 0f;
+    public float hairsRotation = 0f;
+    public float dotRotation = 0f;
 
-    // Hairs
-    public HairStyle hairStyle = HairStyle.Even;
-    public int hairCount = 4;
-    public float customAngle = 0f;
-    public float hairThickness = 5.5f;
-    public float hairLength = 24f;
-    public Color hairColor = Color.red;
-    [Range(0, 1)] public float hairOpacity = 1f;
-    [Range(0, 360)] public float hairsRotation = 0f;
+    [Header("Toggle Settings")]
+    public List<KeybindEntry> keybind = new List<KeybindEntry>();
+    public bool uiVisible = false;
 
-    // Dot
-    public CrosshairShape dotShape = CrosshairShape.Square;
-    public bool dotFilled = true;
-    public Color dotColor = Color.red;
-    [Range(0, 1)] public float dotOpacity = 1f;
-    public float dotScale = 0.9f;
-    [Range(0, 360)] public float dotRotation = 45f;
+    [Header("UI References")]
+    public GameObject uiContainer;
+    public Text statusText;
+    public Button importButton;
+    public Button exportButton;
+    public Button resetButton;
+    public Button copyButton;
+    public Button pasteButton;
+    public InputField crosshairCodeInput;
+    public Dropdown presetDropdown;
+    public Toggle snapToggle;
 
-    // --- Frame HSV ---
-    [Range(0,1)] public float frameHue = 1f;
-    [Range(0,1)] public float frameSaturation = 1f;
-    [Range(0,1)] public float frameValue = 1f;
-    // --- Hair HSV ---
-    [Range(0,1)] public float hairHue = 1f;
-    [Range(0,1)] public float hairSaturation = 1f;
-    [Range(0,1)] public float hairValue = 1f;
-    // --- Dot HSV ---
-    [Range(0,1)] public float dotHue = 1f;
-    [Range(0,1)] public float dotSaturation = 1f;
-    [Range(0,1)] public float dotValue = 1f;
-
-    // --- UI References ---
-    [Header("Frame UI")]
-    public TMP_Dropdown frameShapeDropdown;
-    public Toggle frameFilledToggle;
-    public Slider frameOpacitySlider;
-    public Slider frameScaleSlider;
-    public Slider frameRotationSlider;
+    [Header("Sliders")]
+    public Slider crosshairThicknessSlider;
+    public Slider crosshairGapSlider;
+    public Slider crosshairLengthSlider;
+    public Slider outlineThicknessSlider;
+    public Slider dotSizeSlider;
+    public Slider dotOutlineThicknessSlider;
     public Slider frameThicknessSlider;
-    public Slider frameColorSlider; // always-visible color slider
-    public Slider frameSaturationSlider;
-    public Slider frameValueSlider;
-    public GameObject frameColorPreviewObj; // preview GameObject with sprite
-    private SpriteRenderer frameColorPreviewRenderer; // cached SpriteRenderer
-    public GameObject frameSaturationRefObj;
-    private SpriteRenderer frameSaturationRefRenderer;
-    public GameObject frameValueRefObj;
-    private SpriteRenderer frameValueRefRenderer;
-    public UnityEngine.UI.Button hideCrosshairButton;
-    public UnityEngine.UI.Image hideCrosshairButtonImage; // The Image component on the hide crosshair button
-    public Sprite crosshairVisibleSprite; // Sprite to show when crosshair is visible
-    public Sprite crosshairHiddenSprite; // Sprite to show when crosshair is hidden
-
-    [Header("Hairs UI")]
-    public TMP_Dropdown hairStyleDropdown;
-    public Slider hairCountSlider;
-    public Slider customAngleSlider;
-    public Slider hairThicknessSlider;
-    public Slider hairLengthSlider;
+    public Slider frameSizeSlider;
+    public Slider frameOutlineThicknessSlider;
+    public Slider hairsThicknessSlider;
+    public Slider hairsLengthSlider;
+    public Slider hairsOutlineThicknessSlider;
+    public Slider movementErrorAmountSlider;
+    public Slider movementErrorDecaySlider;
+    public Slider firingErrorAmountSlider;
+    public Slider firingErrorDecaySlider;
+    public Slider frameRotationSlider;
     public Slider hairsRotationSlider;
-    public Slider hairColorSlider; // always-visible color slider
-    public Slider hairSaturationSlider;
-    public Slider hairValueSlider;
-    public GameObject hairColorPreviewObj; // preview GameObject with sprite
-    private SpriteRenderer hairColorPreviewRenderer;
-    public GameObject hairSaturationRefObj;
-    private SpriteRenderer hairSaturationRefRenderer;
-    public GameObject hairValueRefObj;
-    private SpriteRenderer hairValueRefRenderer;
-    public Slider hairOpacitySlider;
-    public Toggle hairsExtendPastFrameToggle;
-    public Slider hairDistanceSlider;
-
-    [Header("Dot UI")]
-    public TMP_Dropdown dotShapeDropdown;
-    public Toggle dotFilledToggle;
-    public Slider dotColorSlider; // always-visible color slider
-    public Slider dotSaturationSlider;
-    public Slider dotValueSlider;
-    public GameObject dotColorPreviewObj; // preview GameObject with sprite
-    private SpriteRenderer dotColorPreviewRenderer;
-    public GameObject dotSaturationRefObj;
-    private SpriteRenderer dotSaturationRefRenderer;
-    public GameObject dotValueRefObj;
-    private SpriteRenderer dotValueRefRenderer;
-    public Slider dotOpacitySlider;
-    public Slider dotScaleSlider;
     public Slider dotRotationSlider;
 
-    [Header("Crosshair Visual Root")]
-    public GameObject crosshairVisualRoot; // Assign this to the crosshair graphics root in the Inspector
+    [Header("Toggles")]
+    public Toggle enableCrosshairToggle;
+    public Toggle enableOutlineToggle;
+    public Toggle enableDotToggle;
+    public Toggle dotOutlineToggle;
+    public Toggle enableFrameToggle;
+    public Toggle frameOutlineToggle;
+    public Toggle enableHairsToggle;
+    public Toggle hairsOutlineToggle;
+    public Toggle enableMovementErrorToggle;
+    public Toggle enableFiringErrorToggle;
 
-    [Header("Tabs")]
-    public GameObject frameTabRoot;
-    public GameObject hairTabRoot;
-    public GameObject dotTabRoot;
-    public UnityEngine.UI.Button frameTabButton;
-    public UnityEngine.UI.Button hairTabButton;
-    public UnityEngine.UI.Button dotTabButton;
+    [Header("Color Buttons")]
+    public Button crosshairColorButton;
+    public Button outlineColorButton;
+    public Button dotColorButton;
+    public Button dotOutlineColorButton;
+    public Button frameColorButton;
+    public Button frameOutlineColorButton;
+    public Button hairsColorButton;
+    public Button hairsOutlineColorButton;
 
-    [Header("Save/Load")]
-    public UnityEngine.UI.Button saveCodeButton;
-    public UnityEngine.UI.Button loadCodeButton;
-    public UnityEngine.UI.Button generateImageButton;
-    public UnityEngine.UI.Button clearButton;
-    public TMP_Dropdown presetDropdown;
+    [Header("Keybind UI")]
+    public Button keybindButton;
+    public Text keybindText;
+    public GameObject keybindPopup;
+    public Button clearKeybindButton;
+    public Button confirmKeybindButton;
+    public Button cancelKeybindButton;
 
-    [Header("Snapping")]
-    public Toggle snapRotationToggle;
-    private bool SnapEnabled => snapRotationToggle != null && snapRotationToggle.isOn;
+    [Header("Color Picker")]
+    public GameObject colorPickerContainer;
+    public Slider hueSlider;
+    public Slider satSlider;
+    public Slider valSlider;
+    public Slider alphaSlider;
+    public Image colorPreview;
+    public Button colorConfirmButton;
+    public Button colorCancelButton;
+    public InputField hexInput;
 
-    [Header("Keybinds")]
-    public UnityEngine.UI.Button keybindRecordButton;
-    public GameObject uiRoot; // Assign your UI root GameObject here
-    
-    [Header("Preset Keybinds")]
-    public Toggle presetKeybindsToggle;
-    public GameObject presetKeybindsPanel;
-    public UnityEngine.UI.Button[] presetKeybindButtons = new UnityEngine.UI.Button[5];
-    public Toggle[] presetHoldToggles = new Toggle[5];
-    public UnityEngine.UI.Button clearAllPresetKeybindsButton; // Assign in Inspector
+    // ... rest of your script
 
-    [Header("Tab Button Positions")] 
-    public Vector2 tabLeftPosition = new Vector2(-200, -40); // left and down
-    public Vector2 tabMiddlePosition = new Vector2(0, 0);    // center
-    public Vector2 tabRightPosition = new Vector2(200, 0);   // right
-    public Color tabHighlightColor = new Color(1f, 0.9f, 0.6f, 1f); // highlighted color
-    public Color tabNormalColor = Color.white; // normal color
-    public float tabHighlightScale = 0.023f; // 15% larger than normal
-    public float tabNormalScale = 0.02f;
 
-    private enum SpecialKey
-    {
-        None,
-        MouseLeft,
-        MouseRight,
-        MouseMiddle,
-        MouseWheelUp,
-        MouseWheelDown
-    }
+    // ... rest of your script remains exactly the same ...
 
-    // Helper to convert SpecialKey to display string
-    private static string SpecialKeyToString(SpecialKey key)
-    {
-        switch (key)
-        {
-            case SpecialKey.MouseLeft: return "Mouse Left";
-            case SpecialKey.MouseRight: return "Mouse Right";
-            case SpecialKey.MouseMiddle: return "Mouse Middle";
-            case SpecialKey.MouseWheelUp: return "Scroll Up";
-            case SpecialKey.MouseWheelDown: return "Scroll Down";
-            default: return "";
-        }
-    }
-//
-    // Keybinds can now be a mix of KeyCode and SpecialKey
-    private struct KeybindEntry
-    {
-        public KeyCode keyCode;
-        public SpecialKey specialKey;
-        public KeybindEntry(KeyCode k) { keyCode = k; specialKey = SpecialKey.None; }
-        public KeybindEntry(SpecialKey s) { keyCode = KeyCode.None; specialKey = s; }
-        public override string ToString()
-        {
-            if (specialKey != SpecialKey.None) return SpecialKeyToString(specialKey);
-            return keyCode.ToString();
-        }
-    }
 
-    private List<KeybindEntry> currentKeybind = new List<KeybindEntry> { new KeybindEntry(KeyCode.F2) }; // Default: F2 (Fn+F2 is hardware, so use F2)
-    private bool recordingKeybind = false;
-    private HashSet<KeyCode> pressedKeys = new HashSet<KeyCode>();
-    private List<KeyCode> lastPressedKeys = new List<KeyCode>();
-    [HideInInspector]
-    public bool uiVisible = true;
-    private float keybindReleaseTimer = 0f;
-    private float keybindReleaseGrace = 0.3f; // seconds
+    private Vector2 movementError = Vector2.zero;
+    private Vector2 firingError = Vector2.zero;
     private bool keybindWasHeld = false;
+    private bool detectingKeybind = false;
+    private List<KeybindEntry> tempKeybind = new List<KeybindEntry>();
+    private Color targetColor;
+    private System.Action<Color> colorCallback;
 
-    private enum TabType { Frame, Hair, Dot }
-    private TabType currentTab = TabType.Frame;
-
-    // --- Preset System ---
-    private const int PRESET_COUNT = 5;
-    private string[] presets = new string[PRESET_COUNT];
+    private List<string> presets = new List<string>();
     private int currentPresetIndex = 0;
+    private bool isLoadingPreset = false;
 
-    // --- Preset Keybind System ---
-    private List<KeybindEntry>[] presetKeybinds = new List<KeybindEntry>[PRESET_COUNT];
-    private bool[] presetHoldModes = new bool[PRESET_COUNT];
-    private bool[] presetKeybindWasHeld = new bool[PRESET_COUNT];
-    private int[] presetReturnIndex = new int[PRESET_COUNT]; // For hold mode: remember which preset to return to
-    private bool recordingPresetKeybind = false;
-    private int recordingPresetIndex = -1;
-    private HashSet<KeyCode> presetPressedKeys = new HashSet<KeyCode>();
-    private List<KeyCode> presetLastPressedKeys = new List<KeyCode>();
-    private float presetKeybindReleaseTimer = 0f;
+    private float lastKeybindCooldown = 0f;
+    private const float KEYBIND_COOLDOWN = 0.1f;
 
-    // --- Tab Button Animation State ---
-    private class TabButtonAnimState {
-        public Vector2 currentPos, targetPos;
-        public Color currentColor, targetColor;
-        public float currentScale, targetScale;
-        public RectTransform rt;
-        public Image img;
-        public TabButtonAnimState(UnityEngine.UI.Button btn) {
-            if (btn == null) return;
-            rt = btn.GetComponent<RectTransform>();
-            img = btn.GetComponent<Image>();
-            if (rt != null) currentPos = targetPos = rt.anchoredPosition;
-            if (img != null) currentColor = targetColor = img.color;
-            currentScale = targetScale = 0.02f; // default scale for your buttons
+    public bool SnapEnabled { get; private set; } = false;
+
+    private void Start()
+    {
+        InitializeUI();
+        LoadPresets();
+        UpdateKeybindText();
+        
+        if (uiContainer != null)
+        {
+            uiContainer.SetActive(uiVisible);
         }
     }
-    private TabButtonAnimState frameTabAnim, hairTabAnim, dotTabAnim;
-    public float tabLerpSpeed = 12f; // Higher = snappier
 
-    protected override void OnPopulateMesh(VertexHelper vh)
+    private void Update()
     {
-        vh.Clear();
-        DrawFrame(vh);
-        DrawHairs(vh);
-        DrawDot(vh);
+        UpdateErrorEffects();
+        HandleKeybindDetection();
+        
+        if (!detectingKeybind)
+        {
+            HandleToggleKeybind();
+        }
     }
 
-    new void Awake()
+    private void HandleToggleKeybind()
     {
-        // --- Frame ---
-        frameShape = CrosshairShape.Circle;
-        frameFilled = false;
-        frameColor = Color.red;
-        frameOpacity = 1f;
-        frameScale = 0.9f;
-        frameRotation = 0f;
-        frameThickness = 5f;
+        if (Time.time - lastKeybindCooldown < KEYBIND_COOLDOWN) return;
 
-        // --- Hairs ---
-        hairStyle = HairStyle.Even;
-        hairCount = 4;
-        customAngle = 0f;
-        hairThickness = 5.5f;
-        hairLength = 24f;
-        hairColor = Color.red;
-        hairOpacity = 1f;
-        hairsRotation = 0f;
+        bool allHeld = keybind.Count > 0;
+        bool mouseKeyInBind = false;
 
-        // --- Dot ---
-        dotShape = CrosshairShape.Square;
-        dotFilled = true;
-        dotColor = Color.red;
-        dotOpacity = 1f;
-        dotScale = 0.9f;
-        dotRotation = 45f;
+        foreach (var k in keybind)
+        {
+            if (!GetKeyState(k)) 
+            {
+                allHeld = false;
+            }
+            if (k.specialKey != SpecialKey.None && k.specialKey != SpecialKey.MouseWheelUp && k.specialKey != SpecialKey.MouseWheelDown)
+            {
+                mouseKeyInBind = true;
+            }
+        }
 
-        // --- HSV ---
-        frameHue = 1f;
-        frameSaturation = 1f;
-        frameValue = 1f;
-        hairHue = 1f;
-        hairSaturation = 1f;
-        hairValue = 1f;
-        dotHue = 1f;
-        dotSaturation = 1f;
-        dotValue = 1f;
+        if (allHeld)
+        {
+            bool pointerOverUI = uiVisible && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            bool nearEdge = IsMouseNearEdge();
+            
+            if (!(mouseKeyInBind && (pointerOverUI || nearEdge)))
+            {
+                if (!keybindWasHeld)
+                {
+                    ToggleUI();
+                    keybindWasHeld = true;
+                    lastKeybindCooldown = Time.time;
+                }
+            }
+        }
+        else
+        {
+            keybindWasHeld = false;
+        }
 
-        raycastTarget = false;
+        // Handle preset keybinds
+        for (int i = 0; i < presets.Count; i++)
+        {
+            List<KeybindEntry> currentPresetKeybind = GetPresetKeybind(i);
+            if (currentPresetKeybind.Count > 0)
+            {
+                bool allPresetKeysHeld = true;
+                foreach (var k in currentPresetKeybind)
+                {
+                    if (!GetKeyState(k))
+                    {
+                        allPresetKeysHeld = false;
+                        break;
+                    }
+                }
+
+                if (allPresetKeysHeld && currentPresetIndex != i)
+                {
+                    SwitchToPreset(i);
+                    break;
+                }
+            }
+        }
     }
 
-    new void Start()
+    private bool GetKeyState(KeybindEntry k)
+{
+    if (k.specialKey == SpecialKey.None)
     {
-        // Cache Image components from preview GameObjects
-        if (frameColorPreviewObj) frameColorPreviewRenderer = frameColorPreviewObj.GetComponent<SpriteRenderer>();
-        if (hairColorPreviewObj) hairColorPreviewRenderer = hairColorPreviewObj.GetComponent<SpriteRenderer>();
-        if (dotColorPreviewObj) dotColorPreviewRenderer = dotColorPreviewObj.GetComponent<SpriteRenderer>();
-        if (frameSaturationRefObj) frameSaturationRefRenderer = frameSaturationRefObj.GetComponent<SpriteRenderer>();
-        if (frameValueRefObj) frameValueRefRenderer = frameValueRefObj.GetComponent<SpriteRenderer>();
-        if (hairSaturationRefObj) hairSaturationRefRenderer = hairSaturationRefObj.GetComponent<SpriteRenderer>();
-        if (hairValueRefObj) hairValueRefRenderer = hairValueRefObj.GetComponent<SpriteRenderer>();
-        if (dotSaturationRefObj) dotSaturationRefRenderer = dotSaturationRefObj.GetComponent<SpriteRenderer>();
-        if (dotValueRefObj) dotValueRefRenderer = dotValueRefObj.GetComponent<SpriteRenderer>();
-        // --- Frame UI ---
-        if (frameShapeDropdown) frameShapeDropdown.onValueChanged.AddListener(val => { frameShape = (CrosshairShape)val; SetVerticesDirty(); });
-        if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { frameFilled = val; SetVerticesDirty(); });
-        if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { frameOpacity = val; SetVerticesDirty(); });
-        if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { frameScale = val; SetVerticesDirty(); });
+        // For keyboard keys, use appropriate input system based on focus
+        return UnityEngine.Application.isFocused ? Input.GetKey(k.keyCode) : SystemInput.GetKey(k.keyCode);
+    }
+    else
+    {
+        switch (k.specialKey)
+        {
+            case SpecialKey.MouseLeft:
+                return UnityEngine.Application.isFocused ? Input.GetMouseButton(0) : SystemInput.GetMouseButton(0);
+            case SpecialKey.MouseRight:
+                return UnityEngine.Application.isFocused ? Input.GetMouseButton(1) : SystemInput.GetMouseButton(1);
+            case SpecialKey.MouseMiddle:
+                return UnityEngine.Application.isFocused ? Input.GetMouseButton(2) : SystemInput.GetMouseButton(2);
+            case SpecialKey.MouseWheelUp:
+                return Input.mouseScrollDelta.y > 0.01f;
+            case SpecialKey.MouseWheelDown:
+                return Input.mouseScrollDelta.y < -0.01f;
+            default:
+                return false;
+        }
+    }
+}
+
+
+
+    private bool IsMouseNearEdge()
+{
+    int edgeMargin = 2;
+    Vector2 mousePos = Input.mousePosition;
+    return mousePos.x <= edgeMargin || mousePos.x >= UnityEngine.Screen.width - edgeMargin ||
+           mousePos.y <= edgeMargin || mousePos.y >= UnityEngine.Screen.height - edgeMargin;
+}
+
+
+
+    private List<KeybindEntry> GetPresetKeybind(int presetIndex)
+    {
+        List<KeybindEntry> keybindEntries = new List<KeybindEntry>();
+        
+        switch (presetIndex)
+        {
+            case 0: keybindEntries.Add(new KeybindEntry { keyCode = KeyCode.Alpha1 }); break;
+            case 1: keybindEntries.Add(new KeybindEntry { keyCode = KeyCode.Alpha2 }); break;
+            case 2: keybindEntries.Add(new KeybindEntry { keyCode = KeyCode.Alpha3 }); break;
+            case 3: keybindEntries.Add(new KeybindEntry { keyCode = KeyCode.Alpha4 }); break;
+            case 4: keybindEntries.Add(new KeybindEntry { keyCode = KeyCode.Alpha5 }); break;
+        }
+        
+        return keybindEntries;
+    }
+
+    private void SwitchToPreset(int presetIndex)
+    {
+        if (presetIndex >= 0 && presetIndex < presets.Count)
+        {
+            // Autosave current preset before switching
+            presets[currentPresetIndex] = GenerateCrosshairCode();
+            SavePresetToStorage(currentPresetIndex);
+            
+            // Temporarily disable listeners to prevent feedback loops
+            RemoveSliderListeners();
+            
+            currentPresetIndex = presetIndex;
+            isLoadingPreset = true;
+            
+            // Load the new preset
+            LoadCrosshairFromCode(presets[currentPresetIndex]);
+            
+            // Update UI
+            if (presetDropdown != null)
+            {
+                presetDropdown.value = currentPresetIndex;
+            }
+            
+            isLoadingPreset = false;
+            
+            // Re-enable listeners
+            AddSliderListeners();
+            
+            Debug.Log($"Switched to Preset {presetIndex + 1}");
+        }
+    }
+
+    private void RemoveSliderListeners()
+    {
+        if (frameRotationSlider) frameRotationSlider.onValueChanged.RemoveAllListeners();
+        if (hairsRotationSlider) hairsRotationSlider.onValueChanged.RemoveAllListeners();
+        if (dotRotationSlider) dotRotationSlider.onValueChanged.RemoveAllListeners();
+        if (crosshairThicknessSlider) crosshairThicknessSlider.onValueChanged.RemoveAllListeners();
+        if (crosshairGapSlider) crosshairGapSlider.onValueChanged.RemoveAllListeners();
+        if (crosshairLengthSlider) crosshairLengthSlider.onValueChanged.RemoveAllListeners();
+        if (outlineThicknessSlider) outlineThicknessSlider.onValueChanged.RemoveAllListeners();
+        if (dotSizeSlider) dotSizeSlider.onValueChanged.RemoveAllListeners();
+        if (dotOutlineThicknessSlider) dotOutlineThicknessSlider.onValueChanged.RemoveAllListeners();
+        if (frameThicknessSlider) frameThicknessSlider.onValueChanged.RemoveAllListeners();
+        if (frameSizeSlider) frameSizeSlider.onValueChanged.RemoveAllListeners();
+        if (frameOutlineThicknessSlider) frameOutlineThicknessSlider.onValueChanged.RemoveAllListeners();
+        if (hairsThicknessSlider) hairsThicknessSlider.onValueChanged.RemoveAllListeners();
+        if (hairsLengthSlider) hairsLengthSlider.onValueChanged.RemoveAllListeners();
+        if (hairsOutlineThicknessSlider) hairsOutlineThicknessSlider.onValueChanged.RemoveAllListeners();
+        if (movementErrorAmountSlider) movementErrorAmountSlider.onValueChanged.RemoveAllListeners();
+        if (movementErrorDecaySlider) movementErrorDecaySlider.onValueChanged.RemoveAllListeners();
+        if (firingErrorAmountSlider) firingErrorAmountSlider.onValueChanged.RemoveAllListeners();
+        if (firingErrorDecaySlider) firingErrorDecaySlider.onValueChanged.RemoveAllListeners();
+    }
+
+    private void AddSliderListeners()
+    {
         if (frameRotationSlider) frameRotationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             float value = frameRotationSlider.value;
             if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
             frameRotation = value;
             if (SnapEnabled) frameRotationSlider.value = value;
             SetVerticesDirty();
         });
-        if (frameThicknessSlider) frameThicknessSlider.onValueChanged.AddListener(val => { frameThickness = val; SetVerticesDirty(); });
-        if (frameColorSlider) {
-            frameColorSlider.onValueChanged.AddListener(val => {
-                frameHue = val;
-                frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
-                SetVerticesDirty();
-                ShowColorPreview(frameColorPreviewObj, frameColorPreviewRenderer, frameColor, PreviewType.Frame);
-                UpdateSaturationReferenceColor(frameSaturationRefRenderer, frameHue);
-            });
-        }
-        if (frameSaturationSlider) frameSaturationSlider.onValueChanged.AddListener(val => {
-            frameSaturation = val;
-            frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
-            SetVerticesDirty();
-            ShowReferenceImage(frameSaturationRefObj, frameSaturationRefRenderer, RefType.FrameSaturation);
-        });
-        if (frameValueSlider) frameValueSlider.onValueChanged.AddListener(val => {
-            frameValue = val;
-            frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
-            SetVerticesDirty();
-            ShowReferenceImage(frameValueRefObj, frameValueRefRenderer, RefType.FrameValue);
-        });
-
-        // --- Hairs UI ---
-        if (hairStyleDropdown) hairStyleDropdown.onValueChanged.AddListener(val => { hairStyle = (HairStyle)val; SetVerticesDirty(); UpdateHairUI(); });
-        if (hairCountSlider) hairCountSlider.onValueChanged.AddListener(val => { hairCount = Mathf.RoundToInt(val); SetVerticesDirty(); });
-        if (customAngleSlider) customAngleSlider.onValueChanged.AddListener(val => { customAngle = val; SetVerticesDirty(); });
-        if (hairThicknessSlider) hairThicknessSlider.onValueChanged.AddListener(val => { hairThickness = val; SetVerticesDirty(); });
-        if (hairLengthSlider) hairLengthSlider.onValueChanged.AddListener(val => { hairLength = val; SetVerticesDirty(); });
+        
         if (hairsRotationSlider) hairsRotationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             float value = hairsRotationSlider.value;
             if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
             hairsRotation = value;
             if (SnapEnabled) hairsRotationSlider.value = value;
             SetVerticesDirty();
         });
-        if (hairColorSlider) {
-            hairColorSlider.onValueChanged.AddListener(val => {
-                hairHue = val;
-                hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
-                SetVerticesDirty();
-                ShowColorPreview(hairColorPreviewObj, hairColorPreviewRenderer, hairColor, PreviewType.Hair);
-                UpdateSaturationReferenceColor(hairSaturationRefRenderer, hairHue);
-            });
-        }
-        if (hairSaturationSlider) hairSaturationSlider.onValueChanged.AddListener(val => {
-            hairSaturation = val;
-            hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
-            SetVerticesDirty();
-            ShowReferenceImage(hairSaturationRefObj, hairSaturationRefRenderer, RefType.HairSaturation);
-        });
-        if (hairValueSlider) hairValueSlider.onValueChanged.AddListener(val => {
-            hairValue = val;
-            hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
-            SetVerticesDirty();
-            ShowReferenceImage(hairValueRefObj, hairValueRefRenderer, RefType.HairValue);
-        });
-        if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { hairOpacity = val; SetVerticesDirty(); });
-        if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.onValueChanged.AddListener(val => { SetVerticesDirty(); });
-        if (hairDistanceSlider) hairDistanceSlider.onValueChanged.AddListener(val => { SetVerticesDirty(); });
-
-        // --- Dot UI ---
-        if (dotShapeDropdown) dotShapeDropdown.onValueChanged.AddListener(val => { dotShape = (CrosshairShape)val; SetVerticesDirty(); });
-        if (dotFilledToggle) dotFilledToggle.onValueChanged.AddListener(val => { dotFilled = val; SetVerticesDirty(); });
-        if (dotColorSlider) {
-            dotColorSlider.onValueChanged.AddListener(val => {
-                dotHue = val;
-                dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
-                SetVerticesDirty();
-                ShowColorPreview(dotColorPreviewObj, dotColorPreviewRenderer, dotColor, PreviewType.Dot);
-                UpdateSaturationReferenceColor(dotSaturationRefRenderer, dotHue);
-            });
-        }
-        if (dotSaturationSlider) dotSaturationSlider.onValueChanged.AddListener(val => {
-            dotSaturation = val;
-            dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
-            SetVerticesDirty();
-            ShowReferenceImage(dotSaturationRefObj, dotSaturationRefRenderer, RefType.DotSaturation);
-        });
-        if (dotValueSlider) dotValueSlider.onValueChanged.AddListener(val => {
-            dotValue = val;
-            dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
-            SetVerticesDirty();
-            ShowReferenceImage(dotValueRefObj, dotValueRefRenderer, RefType.DotValue);
-        });
-        if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { dotOpacity = val; SetVerticesDirty(); });
-        if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { dotScale = val; SetVerticesDirty(); });
+        
         if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             float value = dotRotationSlider.value;
             if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
             dotRotation = value;
@@ -416,1633 +394,1165 @@ public class CrosshairRenderer : Graphic
             SetVerticesDirty();
         });
 
-        if (snapRotationToggle) snapRotationToggle.onValueChanged.AddListener(OnSnapToggleChanged);
+        // Add all other slider listeners with the isLoadingPreset check
+        if (crosshairThicknessSlider) crosshairThicknessSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            crosshairThickness = val;
+            SetVerticesDirty();
+        });
 
-        // Tab button listeners
-        if (frameTabButton) frameTabButton.onClick.AddListener(() => ShowTab(TabType.Frame));
-        if (hairTabButton) hairTabButton.onClick.AddListener(() => ShowTab(TabType.Hair));
-        if (dotTabButton) dotTabButton.onClick.AddListener(() => ShowTab(TabType.Dot));
-        // Show default tab
-        ShowTab(currentTab);
+        if (crosshairGapSlider) crosshairGapSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            crosshairGap = val;
+            SetVerticesDirty();
+        });
 
-        // Keybind record button
-        if (keybindRecordButton) keybindRecordButton.onClick.AddListener(StartKeybindRecording);
+        if (crosshairLengthSlider) crosshairLengthSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            crosshairLength = val;
+            SetVerticesDirty();
+        });
 
-        UpdateHairUI();
+        if (outlineThicknessSlider) outlineThicknessSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            outlineThickness = val;
+            SetVerticesDirty();
+        });
 
-        if (hideCrosshairButton) hideCrosshairButton.onClick.AddListener(ToggleCrosshair);
-        UpdateHideCrosshairButtonText();
-        UpdateHideCrosshairButtonSprite();
+        if (dotSizeSlider) dotSizeSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            dotSize = val;
+            SetVerticesDirty();
+        });
 
-        if (saveCodeButton) saveCodeButton.onClick.AddListener(SaveCrosshairCode);
-        if (loadCodeButton) loadCodeButton.onClick.AddListener(LoadCrosshairCode);
-        if (generateImageButton) generateImageButton.onClick.AddListener(GenerateAndOpenImage);
-        if (clearButton) clearButton.onClick.AddListener(ClearToDefaults);
-        
-        // Setup preset system
-        SetupPresetSystem();
-        
-        // Setup preset keybind system
-        SetupPresetKeybindSystem();
+        if (dotOutlineThicknessSlider) dotOutlineThicknessSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            dotOutlineThickness = val;
+            SetVerticesDirty();
+        });
 
-        if (clearAllPresetKeybindsButton != null)
-            clearAllPresetKeybindsButton.onClick.AddListener(ClearAllPresetKeybinds);
+        if (frameThicknessSlider) frameThicknessSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            frameThickness = val;
+            SetVerticesDirty();
+        });
 
-        frameTabAnim = new TabButtonAnimState(frameTabButton);
-        hairTabAnim = new TabButtonAnimState(hairTabButton);
-        dotTabAnim = new TabButtonAnimState(dotTabButton);
+        if (frameSizeSlider) frameSizeSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            frameSize = val;
+            SetVerticesDirty();
+        });
 
-        // Immediately set tab button visuals to match the current tab (no lerp on first frame)
-        UpdateTabButtonVisuals(currentTab);
-        ApplyTabButtonAnimStateInstant(frameTabAnim);
-        ApplyTabButtonAnimStateInstant(hairTabAnim);
-        ApplyTabButtonAnimStateInstant(dotTabAnim);
+        if (frameOutlineThicknessSlider) frameOutlineThicknessSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            frameOutlineThickness = val;
+            SetVerticesDirty();
+        });
+
+        if (hairsThicknessSlider) hairsThicknessSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            hairsThickness = val;
+            SetVerticesDirty();
+        });
+
+        if (hairsLengthSlider) hairsLengthSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            hairsLength = val;
+            SetVerticesDirty();
+        });
+
+        if (hairsOutlineThicknessSlider) hairsOutlineThicknessSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            hairsOutlineThickness = val;
+            SetVerticesDirty();
+        });
+
+        if (movementErrorAmountSlider) movementErrorAmountSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            movementErrorAmount = val;
+        });
+
+        if (movementErrorDecaySlider) movementErrorDecaySlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            movementErrorDecay = val;
+        });
+
+        if (firingErrorAmountSlider) firingErrorAmountSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            firingErrorAmount = val;
+        });
+
+        if (firingErrorDecaySlider) firingErrorDecaySlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
+            firingErrorDecay = val;
+        });
     }
 
-    private void ApplyTabButtonAnimStateInstant(TabButtonAnimState anim)
+    private void UpdateErrorEffects()
     {
-        if (anim == null || anim.rt == null) return;
-        anim.currentPos = anim.targetPos;
-        anim.currentColor = anim.targetColor;
-        anim.currentScale = anim.targetScale;
-        anim.rt.anchoredPosition = anim.currentPos;
-        if (anim.img != null) anim.img.color = anim.currentColor;
-        anim.rt.localScale = Vector3.one * anim.currentScale;
-    }
-
-    void Update()
-    {
-        if (recordingKeybind)
+        if (enableMovementError)
         {
-            // Check all possible KeyCodes
-            foreach (KeyCode key in System.Enum.GetValues(typeof(KeyCode)))
-            {
-                if (key == KeyCode.None) continue;
-                if (Input.GetKeyDown(key))
-                    pressedKeys.Add(key);
-                if (Input.GetKeyUp(key))
-                    pressedKeys.Remove(key);
-            }
-            // Mouse buttons
-            if (Input.GetMouseButtonDown(0)) pressedKeys.Add(KeyCode.Mouse0);
-            if (Input.GetMouseButtonUp(0)) pressedKeys.Remove(KeyCode.Mouse0);
-            if (Input.GetMouseButtonDown(1)) pressedKeys.Add(KeyCode.Mouse1);
-            if (Input.GetMouseButtonUp(1)) pressedKeys.Remove(KeyCode.Mouse1);
-            if (Input.GetMouseButtonDown(2)) pressedKeys.Add(KeyCode.Mouse2);
-            if (Input.GetMouseButtonUp(2)) pressedKeys.Remove(KeyCode.Mouse2);
-            // Mouse wheel (record as a one-shot event)
-            float scroll = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scroll) > 0.01f)
-            {
-                if (scroll > 0) pressedKeys.Add(KeyCode.JoystickButton10);
-                else if (scroll < 0) pressedKeys.Add(KeyCode.JoystickButton11);
-            }
-            // Track the last non-empty set of pressed keys
-            if (pressedKeys.Count > 0)
-            {
-                lastPressedKeys = new List<KeyCode>(pressedKeys);
-                keybindReleaseTimer = 0f;
-                var displayList = new List<KeybindEntry>();
-                foreach (var k in lastPressedKeys)
-                {
-                    if (k == KeyCode.Mouse0) displayList.Add(new KeybindEntry(SpecialKey.MouseLeft));
-                    else if (k == KeyCode.Mouse1) displayList.Add(new KeybindEntry(SpecialKey.MouseRight));
-                    else if (k == KeyCode.Mouse2) displayList.Add(new KeybindEntry(SpecialKey.MouseMiddle));
-                    else if (k == KeyCode.JoystickButton10) displayList.Add(new KeybindEntry(SpecialKey.MouseWheelUp));
-                    else if (k == KeyCode.JoystickButton11) displayList.Add(new KeybindEntry(SpecialKey.MouseWheelDown));
-                    else displayList.Add(new KeybindEntry(k));
-                }
-                if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(displayList);
-            }
-            if (pressedKeys.Count == 0 && lastPressedKeys.Count > 0)
-            {
-                keybindReleaseTimer += Time.unscaledDeltaTime;
-                if (keybindReleaseTimer >= keybindReleaseGrace)
-                {
-                    currentKeybind = new List<KeybindEntry>();
-                    foreach (var k in lastPressedKeys)
-                    {
-                        if (k == KeyCode.Mouse0) currentKeybind.Add(new KeybindEntry(SpecialKey.MouseLeft));
-                        else if (k == KeyCode.Mouse1) currentKeybind.Add(new KeybindEntry(SpecialKey.MouseRight));
-                        else if (k == KeyCode.Mouse2) currentKeybind.Add(new KeybindEntry(SpecialKey.MouseMiddle));
-                        else if (k == KeyCode.JoystickButton10) currentKeybind.Add(new KeybindEntry(SpecialKey.MouseWheelUp));
-                        else if (k == KeyCode.JoystickButton11) currentKeybind.Add(new KeybindEntry(SpecialKey.MouseWheelDown));
-                        else currentKeybind.Add(new KeybindEntry(k));
-                    }
-                    recordingKeybind = false;
-                    if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(currentKeybind);
-                }
-            }
-            else if (pressedKeys.Count > 0)
-            {
-                keybindReleaseTimer = 0f;
-            }
-        }
-        else if (recordingPresetKeybind)
-        {
-            foreach (KeyCode key in System.Enum.GetValues(typeof(KeyCode)))
-            {
-                if (key == KeyCode.None) continue;
-                if (Input.GetKeyDown(key))
-                    presetPressedKeys.Add(key);
-                if (Input.GetKeyUp(key))
-                    presetPressedKeys.Remove(key);
-            }
-            if (Input.GetMouseButtonDown(0)) presetPressedKeys.Add(KeyCode.Mouse0);
-            if (Input.GetMouseButtonUp(0)) presetPressedKeys.Remove(KeyCode.Mouse0);
-            if (Input.GetMouseButtonDown(1)) presetPressedKeys.Add(KeyCode.Mouse1);
-            if (Input.GetMouseButtonUp(1)) presetPressedKeys.Remove(KeyCode.Mouse1);
-            if (Input.GetMouseButtonDown(2)) presetPressedKeys.Add(KeyCode.Mouse2);
-            if (Input.GetMouseButtonUp(2)) presetPressedKeys.Remove(KeyCode.Mouse2);
-            float scroll = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scroll) > 0.01f)
-            {
-                if (scroll > 0) presetPressedKeys.Add(KeyCode.JoystickButton10);
-                else if (scroll < 0) presetPressedKeys.Add(KeyCode.JoystickButton11);
-            }
-            if (presetPressedKeys.Count > 0)
-            {
-                presetLastPressedKeys = new List<KeyCode>(presetPressedKeys);
-                presetKeybindReleaseTimer = 0f;
-                var displayList = new List<KeybindEntry>();
-                foreach (var k in presetLastPressedKeys)
-                {
-                    if (k == KeyCode.Mouse0) displayList.Add(new KeybindEntry(SpecialKey.MouseLeft));
-                    else if (k == KeyCode.Mouse1) displayList.Add(new KeybindEntry(SpecialKey.MouseRight));
-                    else if (k == KeyCode.Mouse2) displayList.Add(new KeybindEntry(SpecialKey.MouseMiddle));
-                    else if (k == KeyCode.JoystickButton10) displayList.Add(new KeybindEntry(SpecialKey.MouseWheelUp));
-                    else if (k == KeyCode.JoystickButton11) displayList.Add(new KeybindEntry(SpecialKey.MouseWheelDown));
-                    else displayList.Add(new KeybindEntry(k));
-                }
-                if (presetKeybindButtons[recordingPresetIndex] != null)
-                {
-                    presetKeybindButtons[recordingPresetIndex].GetComponentInChildren<TMPro.TMP_Text>().text = KeybindToString(displayList);
-                }
-            }
-            if (presetPressedKeys.Count == 0 && presetLastPressedKeys.Count > 0)
-            {
-                presetKeybindReleaseTimer += Time.unscaledDeltaTime;
-                if (presetKeybindReleaseTimer >= keybindReleaseGrace)
-                {
-                    presetKeybinds[recordingPresetIndex] = new List<KeybindEntry>();
-                    foreach (var k in presetLastPressedKeys)
-                    {
-                        if (k == KeyCode.Mouse0) presetKeybinds[recordingPresetIndex].Add(new KeybindEntry(SpecialKey.MouseLeft));
-                        else if (k == KeyCode.Mouse1) presetKeybinds[recordingPresetIndex].Add(new KeybindEntry(SpecialKey.MouseRight));
-                        else if (k == KeyCode.Mouse2) presetKeybinds[recordingPresetIndex].Add(new KeybindEntry(SpecialKey.MouseMiddle));
-                        else if (k == KeyCode.JoystickButton10) presetKeybinds[recordingPresetIndex].Add(new KeybindEntry(SpecialKey.MouseWheelUp));
-                        else if (k == KeyCode.JoystickButton11) presetKeybinds[recordingPresetIndex].Add(new KeybindEntry(SpecialKey.MouseWheelDown));
-                        else presetKeybinds[recordingPresetIndex].Add(new KeybindEntry(k));
-                    }
-                    recordingPresetKeybind = false;
-                    recordingPresetIndex = -1;
-                    UpdatePresetKeybindButtonTexts();
-                    SavePresetKeybindsToStorage();
-                }
-            }
-            else if (presetPressedKeys.Count > 0)
-            {
-                presetKeybindReleaseTimer = 0f;
-            }
+            movementError *= movementErrorDecay;
         }
         else
         {
-            // Manual cooldown-based keybind detection (always use SystemInput for global keybinds)
-            bool allHeld = currentKeybind.Count > 0;
-            foreach (var k in currentKeybind)
+            movementError = Vector2.zero;
+        }
+
+        if (enableFiringError)
+        {
+            firingError *= firingErrorDecay;
+        }
+        else
+        {
+            firingError = Vector2.zero;
+        }
+    }
+
+    private void HandleKeybindDetection()
+    {
+        if (!detectingKeybind) return;
+
+        foreach (KeyCode keyCode in System.Enum.GetValues(typeof(KeyCode)))
+        {
+            if (keyCode == KeyCode.None) continue;
+
+            if (Input.GetKeyDown(keyCode))
             {
-                if (k.specialKey == SpecialKey.None)
+                if (keyCode == KeyCode.Escape)
                 {
-                    if (!SystemInput.GetKey(k.keyCode)) allHeld = false;
+                    tempKeybind.Clear();
+                    break;
                 }
-                else
+
+                KeybindEntry entry = new KeybindEntry { keyCode = keyCode };
+                if (!tempKeybind.Any(k => k.keyCode == keyCode && k.specialKey == SpecialKey.None))
                 {
-                    // Mouse/special key detection
-                    if (k.specialKey == SpecialKey.MouseLeft && !SystemInput.GetMouseButton(0)) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseRight && !SystemInput.GetMouseButton(1)) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseMiddle && !SystemInput.GetMouseButton(2)) allHeld = false;
-                    // Mouse wheel up/down: not supported by SystemInput, fallback to Input
-                    if (k.specialKey == SpecialKey.MouseWheelUp && Input.mouseScrollDelta.y <= 0.01f) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseWheelDown && Input.mouseScrollDelta.y >= -0.01f) allHeld = false;
-                }
-            }
-            // UI safety: if UI is visible and pointer is over UI, ignore mouse keybinds
-            bool mouseKeyInBind = currentKeybind.Any(k => k.specialKey != SpecialKey.None);
-            if (allHeld)
-            {
-                bool pointerOverUI = uiVisible && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-                if (!(mouseKeyInBind && pointerOverUI))
-                {
-                    if (!keybindWasHeld)
-                    {
-                        ToggleUI();
-                        keybindWasHeld = true;
-                    }
-                }
-            }
-            else
-            {
-                keybindWasHeld = false;
-            }
-            // Preset keybind detection
-            for (int i = 0; i < PRESET_COUNT; i++)
-            {
-                if (presetKeybinds[i].Count > 0)
-                {
-                    bool allPresetKeysHeld = true;
-                    foreach (var k in presetKeybinds[i])
-                    {
-                        if (k.specialKey == SpecialKey.None)
-                        {
-                            if (!SystemInput.GetKey(k.keyCode)) allPresetKeysHeld = false;
-                        }
-                        else
-                        {
-                            if (k.specialKey == SpecialKey.MouseLeft && !SystemInput.GetMouseButton(0)) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseRight && !SystemInput.GetMouseButton(1)) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseMiddle && !SystemInput.GetMouseButton(2)) allPresetKeysHeld = false;
-                            // Mouse wheel up/down: not supported by SystemInput, fallback to Input
-                            if (k.specialKey == SpecialKey.MouseWheelUp && Input.mouseScrollDelta.y <= 0.01f) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseWheelDown && Input.mouseScrollDelta.y >= -0.01f) allPresetKeysHeld = false;
-                        }
-                    }
-                    bool presetMouseKey = presetKeybinds[i].Any(k => k.specialKey != SpecialKey.None);
-                    bool pointerOverUI = uiVisible && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-                    if (allPresetKeysHeld)
-                    {
-                        if (!(presetMouseKey && pointerOverUI))
-                        {
-                            if (!presetKeybindWasHeld[i])
-                            {
-                                if (presetHoldModes[i])
-                                {
-                                    presetReturnIndex[i] = currentPresetIndex;
-                                    SwitchToPreset(i);
-                                }
-                                else
-                                {
-                                    SwitchToPreset(i);
-                                }
-                                presetKeybindWasHeld[i] = true;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (presetKeybindWasHeld[i] && presetHoldModes[i])
-                        {
-                            SwitchToPreset(presetReturnIndex[i]);
-                        }
-                        presetKeybindWasHeld[i] = false;
-                    }
+                    tempKeybind.Add(entry);
                 }
             }
         }
 
-        // --- Tab Button Animation ---
-        AnimateTabButton(frameTabAnim);
-        AnimateTabButton(hairTabAnim);
-        AnimateTabButton(dotTabAnim);
+        if (Input.GetMouseButtonDown(0))
+        {
+            KeybindEntry entry = new KeybindEntry { specialKey = SpecialKey.MouseLeft };
+            if (!tempKeybind.Any(k => k.specialKey == SpecialKey.MouseLeft))
+            {
+                tempKeybind.Add(entry);
+            }
+        }
+        if (Input.GetMouseButtonDown(1))
+        {
+            KeybindEntry entry = new KeybindEntry { specialKey = SpecialKey.MouseRight };
+            if (!tempKeybind.Any(k => k.specialKey == SpecialKey.MouseRight))
+            {
+                tempKeybind.Add(entry);
+            }
+        }
+        if (Input.GetMouseButtonDown(2))
+        {
+            KeybindEntry entry = new KeybindEntry { specialKey = SpecialKey.MouseMiddle };
+            if (!tempKeybind.Any(k => k.specialKey == SpecialKey.MouseMiddle))
+            {
+                tempKeybind.Add(entry);
+            }
+        }
+
+        if (Input.mouseScrollDelta.y > 0.01f)
+        {
+            KeybindEntry entry = new KeybindEntry { specialKey = SpecialKey.MouseWheelUp };
+            if (!tempKeybind.Any(k => k.specialKey == SpecialKey.MouseWheelUp))
+            {
+                tempKeybind.Add(entry);
+            }
+        }
+        if (Input.mouseScrollDelta.y < -0.01f)
+        {
+            KeybindEntry entry = new KeybindEntry { specialKey = SpecialKey.MouseWheelDown };
+            if (!tempKeybind.Any(k => k.specialKey == SpecialKey.MouseWheelDown))
+            {
+                tempKeybind.Add(entry);
+            }
+        }
+
+        UpdateKeybindPreview();
     }
 
-    private void AnimateTabButton(TabButtonAnimState anim)
+    private void UpdateKeybindPreview()
     {
-        if (anim == null || anim.rt == null) return;
-        anim.currentPos = Vector2.Lerp(anim.currentPos, anim.targetPos, Time.unscaledDeltaTime * tabLerpSpeed);
-        anim.currentColor = Color.Lerp(anim.currentColor, anim.targetColor, Time.unscaledDeltaTime * tabLerpSpeed);
-        anim.currentScale = Mathf.Lerp(anim.currentScale, anim.targetScale, Time.unscaledDeltaTime * tabLerpSpeed);
-        anim.rt.anchoredPosition = anim.currentPos;
-        if (anim.img != null) anim.img.color = anim.currentColor;
-        anim.rt.localScale = Vector3.one * anim.currentScale;
+        if (keybindText != null)
+        {
+            string preview = "Press keys... ";
+            if (tempKeybind.Count > 0)
+            {
+                preview = string.Join(" + ", tempKeybind.Select(GetKeybindDisplayName));
+            }
+            keybindText.text = preview;
+        }
     }
 
-    void StartKeybindRecording()
-    {
-        recordingKeybind = true;
-        pressedKeys.Clear();
-        currentKeybind.Clear();
-        lastPressedKeys.Clear();
-        keybindReleaseTimer = 0f;
-        if (keybindRecordButton) keybindRecordButton.GetComponentInChildren<TMPro.TMP_Text>().text = "Press keys...";
-    }
-
-    void ToggleUI()
+    private void ToggleUI()
     {
         uiVisible = !uiVisible;
-        if (uiRoot) uiRoot.SetActive(uiVisible);
-    }
-
-    string KeybindToString(List<KeybindEntry> keys)
-    {
-        if (keys == null || keys.Count == 0) return "Set Keybind";
-        return string.Join(" + ", keys.Select(k => k.ToString()));
-    }
-
-    private void OnSnapToggleChanged(bool isOn)
-    {
-        // When toggled on, snap all current slider values
-        if (isOn)
+        if (uiContainer != null)
         {
-            if (frameRotationSlider)
-            {
-                float snapped = Mathf.Round(frameRotationSlider.value / 45f) * 45f;
-                frameRotationSlider.value = snapped;
-                frameRotation = snapped;
-            }
-            if (hairsRotationSlider)
-            {
-                float snapped = Mathf.Round(hairsRotationSlider.value / 45f) * 45f;
-                hairsRotationSlider.value = snapped;
-                hairsRotation = snapped;
-            }
-            if (dotRotationSlider)
-            {
-                float snapped = Mathf.Round(dotRotationSlider.value / 45f) * 45f;
-                dotRotationSlider.value = snapped;
-                dotRotation = snapped;
-            }
-            SetVerticesDirty();
-        }
-    }
-
-    void UpdateHairUI()
-    {
-        bool isCustom = hairStyle == HairStyle.Custom;
-        if (customAngleSlider) customAngleSlider.gameObject.SetActive(isCustom);
-        if (hairCountSlider) hairCountSlider.gameObject.SetActive(!isCustom);
-    }
-
-    // --- Drawing Methods ---
-    void DrawFrame(VertexHelper vh)
-    {
-        Color frameCol = frameColor;
-        frameCol.a *= frameOpacity;
-        float size = rectTransform.rect.width * 0.5f * frameScale;
-        Vector2 center = rectTransform.rect.center;
-        float rotRad = -frameRotation * Mathf.Deg2Rad; // Invert for clockwise
-        switch (frameShape)
-        {
-            case CrosshairShape.Circle:
-                DrawCircle(vh, center, size, frameCol, frameFilled, 64, rotRad);
-                break;
-            case CrosshairShape.Square:
-                DrawSquare(vh, center, size, frameCol, frameFilled, rotRad);
-                break;
-            case CrosshairShape.Triangle:
-                DrawTriangle(vh, center, size, frameCol, frameFilled, rotRad);
-                break;
-        }
-    }
-
-    void DrawHairs(VertexHelper vh)
-    {
-        Color hairCol = hairColor;
-        hairCol.a *= hairOpacity;
-        float size = rectTransform.rect.width * 0.5f * frameScale;
-        Vector2 center = rectTransform.rect.center;
-        int count = Mathf.Max(1, hairCount);
-        float angleStep = 360f / count;
-        float thickness = hairThickness;
-        float length = hairLength * frameScale;
-        float baseRot = -hairsRotation * Mathf.Deg2Rad; // Invert for clockwise
-        float hairDistance = hairDistanceSlider != null ? hairDistanceSlider.value : 0.2f; // Default to 0.2 if not set
-        if (hairStyle == HairStyle.Custom)
-        {
-            angleStep = customAngle;
-            count = Mathf.Max(1, Mathf.FloorToInt(360f / angleStep));
-        }
-        float startRadius = size * hairDistance;
-        float endRadius = hairsExtendPastFrameToggle != null && hairsExtendPastFrameToggle.isOn
-            ? startRadius + length
-            : Mathf.Min(size * 0.9f, startRadius + length);
-        for (int i = 0; i < count; i++)
-        {
-            float angle = baseRot + i * angleStep * Mathf.Deg2Rad;
-            Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-            Vector2 start = center + dir * startRadius;
-            Vector2 end = center + dir * endRadius;
-            DrawThickLine(vh, start, end, thickness, hairCol);
-        }
-    }
-
-    void DrawDot(VertexHelper vh)
-    {
-        Color dotCol = dotColor;
-        dotCol.a *= dotOpacity;
-        float size = rectTransform.rect.width * 0.08f * dotScale;
-        Vector2 center = rectTransform.rect.center;
-        float rotRad = -dotRotation * Mathf.Deg2Rad; // Invert for clockwise
-        switch (dotShape)
-        {
-            case CrosshairShape.Circle:
-                DrawCircle(vh, center, size, dotCol, dotFilled, 32, rotRad);
-                break;
-            case CrosshairShape.Square:
-                DrawSquare(vh, center, size, dotCol, dotFilled, rotRad);
-                break;
-            case CrosshairShape.Triangle:
-                DrawTriangle(vh, center, size, dotCol, dotFilled, rotRad);
-                break;
-        }
-    }
-
-    // --- Helper Methods ---
-    // Rotates a point around a pivot by angle (in radians)
-    Vector2 RotatePoint(Vector2 point, Vector2 pivot, float angle)
-    {
-        float cos = Mathf.Cos(angle);
-        float sin = Mathf.Sin(angle);
-        Vector2 dir = point - pivot;
-        Vector2 rotated = new Vector2(
-            dir.x * cos - dir.y * sin,
-            dir.x * sin + dir.y * cos
-        );
-        return rotated + pivot;
-    }
-
-    void DrawCircle(VertexHelper vh, Vector2 center, float radius, Color color, bool filled, int segments, float rotation = 0f)
-    {
-        if (filled)
-        {
-            int startIndex = vh.currentVertCount;
-            vh.AddVert(center, color, Vector2.zero);
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = rotation + 2 * Mathf.PI * i / segments;
-                Vector2 pos = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
-                vh.AddVert(pos, color, Vector2.zero);
-            }
-            for (int i = 1; i <= segments; i++)
-            {
-                vh.AddTriangle(startIndex, startIndex + i, startIndex + i + 1);
-            }
-        }
-        else
-        {
-            // Draw as a ring (polygon) to avoid seams
-            int startIndex = vh.currentVertCount;
-            float halfThickness = frameThickness * 0.5f;
-            for (int i = 0; i <= segments; i++)
-            {
-                float angle = rotation + 2 * Mathf.PI * i / segments;
-                Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
-                Vector2 outer = center + dir * (radius + halfThickness);
-                Vector2 inner = center + dir * (radius - halfThickness);
-                vh.AddVert(outer, color, Vector2.zero);
-                vh.AddVert(inner, color, Vector2.zero);
-            }
-            for (int i = 0; i < segments; i++)
-            {
-                int idx = startIndex + i * 2;
-                vh.AddTriangle(idx, idx + 1, idx + 2);
-                vh.AddTriangle(idx + 1, idx + 3, idx + 2);
-            }
-        }
-    }
-
-    void DrawSquare(VertexHelper vh, Vector2 center, float size, Color color, bool filled, float rotation = 0f)
-    {
-        Vector2 half = Vector2.one * size;
-        Vector2[] corners = new Vector2[4]
-        {
-            new Vector2(-half.x, half.y),
-            new Vector2(half.x, half.y),
-            new Vector2(half.x, -half.y),
-            new Vector2(-half.x, -half.y)
-        };
-        // Rotate all corners as a group
-        for (int i = 0; i < 4; i++)
-            corners[i] = RotatePoint(corners[i] + center, center, rotation);
-        if (filled)
-        {
-            int start = vh.currentVertCount;
-            for (int i = 0; i < 4; i++)
-                vh.AddVert(corners[i], color, Vector2.zero);
-            vh.AddTriangle(start, start + 1, start + 2);
-            vh.AddTriangle(start, start + 2, start + 3);
-        }
-        else
-        {
-            // Uniform outline: offset corners along direction from center
-            int startIndex = vh.currentVertCount;
-            float halfThickness = frameThickness * 0.5f;
-            for (int i = 0; i <= 4; i++)
-            {
-                int idx = i % 4;
-                Vector2 dir = (corners[idx] - center).normalized;
-                Vector2 outer = corners[idx] + dir * halfThickness;
-                Vector2 inner = corners[idx] - dir * halfThickness;
-                vh.AddVert(outer, color, Vector2.zero);
-                vh.AddVert(inner, color, Vector2.zero);
-            }
-            for (int i = 0; i < 4; i++)
-            {
-                int idx = startIndex + i * 2;
-                vh.AddTriangle(idx, idx + 1, idx + 2);
-                vh.AddTriangle(idx + 1, idx + 3, idx + 2);
-            }
-        }
-    }
-
-    void DrawTriangle(VertexHelper vh, Vector2 center, float size, Color color, bool filled, float rotation = 0f)
-    {
-        float h = size * Mathf.Sqrt(3) / 2;
-        // Flip Y to make triangle point down
-        Vector2[] pts = new Vector2[3]
-        {
-            new Vector2(0, -h),
-            new Vector2(-size, h / 2),
-            new Vector2(size, h / 2)
-        };
-        // Rotate all points as a group
-        for (int i = 0; i < 3; i++)
-            pts[i] = RotatePoint(pts[i] + center, center, rotation);
-        if (filled)
-        {
-            int start = vh.currentVertCount;
-            for (int i = 0; i < 3; i++)
-                vh.AddVert(pts[i], color, Vector2.zero);
-            vh.AddTriangle(start, start + 1, start + 2);
-        }
-        else
-        {
-            // Uniform outline: offset corners along direction from center
-            int startIndex = vh.currentVertCount;
-            float halfThickness = frameThickness * 0.5f;
-            for (int i = 0; i <= 3; i++)
-            {
-                int idx = i % 3;
-                Vector2 dir = (pts[idx] - center).normalized;
-                Vector2 outer = pts[idx] + dir * halfThickness;
-                Vector2 inner = pts[idx] - dir * halfThickness;
-                vh.AddVert(outer, color, Vector2.zero);
-                vh.AddVert(inner, color, Vector2.zero);
-            }
-            for (int i = 0; i < 3; i++)
-            {
-                int idx = startIndex + i * 2;
-                vh.AddTriangle(idx, idx + 1, idx + 2);
-                vh.AddTriangle(idx + 1, idx + 3, idx + 2);
-            }
-        }
-    }
-
-    void DrawThickLine(VertexHelper vh, Vector2 start, Vector2 end, float thickness, Color color)
-    {
-        Vector2 dir = (end - start).normalized;
-        Vector2 normal = new Vector2(-dir.y, dir.x) * (thickness * 0.5f);
-        int idx = vh.currentVertCount;
-        vh.AddVert(start - normal, color, Vector2.zero);
-        vh.AddVert(start + normal, color, Vector2.zero);
-        vh.AddVert(end + normal, color, Vector2.zero);
-        vh.AddVert(end - normal, color, Vector2.zero);
-        vh.AddTriangle(idx, idx + 1, idx + 2);
-        vh.AddTriangle(idx, idx + 2, idx + 3);
-    }
-
-    // --- Color Preview Fade Logic ---
-    private Coroutine framePreviewFadeCoroutine;
-    private Coroutine hairPreviewFadeCoroutine;
-    private Coroutine dotPreviewFadeCoroutine;
-    private float previewFadeDelay = 1.0f; // seconds before fade starts
-    private float previewFadeDuration = 0.5f; // fade out duration
-
-    // --- Reference Image Fade Logic ---
-    private Coroutine frameSaturationRefFadeCoroutine;
-    private Coroutine frameValueRefFadeCoroutine;
-    private Coroutine hairSaturationRefFadeCoroutine;
-    private Coroutine hairValueRefFadeCoroutine;
-    private Coroutine dotSaturationRefFadeCoroutine;
-    private Coroutine dotValueRefFadeCoroutine;
-    private float refFadeDelay = 1.0f;
-    private float refFadeDuration = 0.5f;
-
-    private enum PreviewType { Frame, Hair, Dot }
-    private enum RefType { FrameSaturation, FrameValue, HairSaturation, HairValue, DotSaturation, DotValue }
-
-    void ShowColorPreview(GameObject previewObj, SpriteRenderer previewRenderer, Color color, PreviewType type)
-    {
-        if (previewObj == null || previewRenderer == null) {
-            return;
-        }
-        // Only set alpha to 1, keep RGB as is
-        var c = previewRenderer.color;
-        previewRenderer.color = new Color(c.r, c.g, c.b, 1f);
-        previewObj.SetActive(true);
-        // Start fade coroutine
-        switch (type) {
-            case PreviewType.Frame:
-                if (framePreviewFadeCoroutine != null) StopCoroutine(framePreviewFadeCoroutine);
-                framePreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewRenderer, PreviewType.Frame));
-                break;
-            case PreviewType.Hair:
-                if (hairPreviewFadeCoroutine != null) StopCoroutine(hairPreviewFadeCoroutine);
-                hairPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewRenderer, PreviewType.Hair));
-                break;
-            case PreviewType.Dot:
-                if (dotPreviewFadeCoroutine != null) StopCoroutine(dotPreviewFadeCoroutine);
-                dotPreviewFadeCoroutine = StartCoroutine(FadeOutPreview(previewObj, previewRenderer, PreviewType.Dot));
-                break;
-        }
-    }
-
-    void ShowReferenceImage(GameObject refObj, SpriteRenderer refRenderer, RefType type)
-    {
-        if (refObj == null || refRenderer == null) return;
-        
-        // Only set alpha to 1, keep RGB as is
-        var c = refRenderer.color;
-        
-        // Apply color filter only to saturation references
-        if (type == RefType.FrameSaturation || type == RefType.HairSaturation || type == RefType.DotSaturation)
-        {
-            // Get the current hue for this component
-            float currentHue = 0f;
-            switch (type)
-            {
-                case RefType.FrameSaturation:
-                    currentHue = frameHue;
-                    break;
-                case RefType.HairSaturation:
-                    currentHue = hairHue;
-                    break;
-                case RefType.DotSaturation:
-                    currentHue = dotHue;
-                    break;
-            }
-            
-            // Convert the current color to HSV
-            Color.RGBToHSV(c, out float h, out float s, out float v);
-            
-            // If the color is saturated (not grey), apply the current hue
-            if (s > 0.1f) // Threshold to detect if it's not grey
-            {
-                Color newColor = Color.HSVToRGB(currentHue, s, v);
-                refRenderer.color = new Color(newColor.r, newColor.g, newColor.b, 1f);
-            }
-            else
-            {
-                // Keep grey colors unchanged
-                refRenderer.color = new Color(c.r, c.g, c.b, 1f);
-            }
-        }
-        else
-        {
-            // For value references, keep original behavior
-            refRenderer.color = new Color(c.r, c.g, c.b, 1f);
+            uiContainer.SetActive(uiVisible);
         }
         
-        refObj.SetActive(true);
-        // Start fade coroutine
-        switch (type)
+        UpdateStatusText();
+    }
+
+    private void InitializeUI()
+    {
+        SetupButtons();
+        SetupSliders();
+        SetupToggles();
+        SetupKeybindUI();
+        SetupColorPicker();
+        SetupPresets();
+        UpdateStatusText();
+        
+        AddSliderListeners();
+    }
+
+    private void SetupButtons()
+    {
+        if (importButton) importButton.onClick.AddListener(ImportCrosshair);
+        if (exportButton) exportButton.onClick.AddListener(ExportCrosshair);
+        if (resetButton) resetButton.onClick.AddListener(ResetCrosshair);
+        if (copyButton) copyButton.onClick.AddListener(CopyCrosshairCode);
+        if (pasteButton) pasteButton.onClick.AddListener(PasteCrosshairCode);
+
+        if (crosshairColorButton) crosshairColorButton.onClick.AddListener(() => OpenColorPicker(crosshairColor, c => crosshairColor = c));
+        if (outlineColorButton) outlineColorButton.onClick.AddListener(() => OpenColorPicker(outlineColor, c => outlineColor = c));
+        if (dotColorButton) dotColorButton.onClick.AddListener(() => OpenColorPicker(dotColor, c => dotColor = c));
+        if (dotOutlineColorButton) dotOutlineColorButton.onClick.AddListener(() => OpenColorPicker(dotOutlineColor, c => dotOutlineColor = c));
+        if (frameColorButton) frameColorButton.onClick.AddListener(() => OpenColorPicker(frameColor, c => frameColor = c));
+        if (frameOutlineColorButton) frameOutlineColorButton.onClick.AddListener(() => OpenColorPicker(frameOutlineColor, c => frameOutlineColor = c));
+        if (hairsColorButton) hairsColorButton.onClick.AddListener(() => OpenColorPicker(hairsColor, c => hairsColor = c));
+        if (hairsOutlineColorButton) hairsOutlineColorButton.onClick.AddListener(() => OpenColorPicker(hairsOutlineColor, c => hairsOutlineColor = c));
+    }
+
+    private void SetupSliders()
+    {
+        // Note: Listeners are added in AddSliderListeners() method
+        if (crosshairThicknessSlider) crosshairThicknessSlider.value = crosshairThickness;
+        if (crosshairGapSlider) crosshairGapSlider.value = crosshairGap;
+        if (crosshairLengthSlider) crosshairLengthSlider.value = crosshairLength;
+        if (outlineThicknessSlider) outlineThicknessSlider.value = outlineThickness;
+        if (dotSizeSlider) dotSizeSlider.value = dotSize;
+        if (dotOutlineThicknessSlider) dotOutlineThicknessSlider.value = dotOutlineThickness;
+        if (frameThicknessSlider) frameThicknessSlider.value = frameThickness;
+        if (frameSizeSlider) frameSizeSlider.value = frameSize;
+        if (frameOutlineThicknessSlider) frameOutlineThicknessSlider.value = frameOutlineThickness;
+        if (hairsThicknessSlider) hairsThicknessSlider.value = hairsThickness;
+        if (hairsLengthSlider) hairsLengthSlider.value = hairsLength;
+        if (hairsOutlineThicknessSlider) hairsOutlineThicknessSlider.value = hairsOutlineThickness;
+        if (movementErrorAmountSlider) movementErrorAmountSlider.value = movementErrorAmount;
+        if (movementErrorDecaySlider) movementErrorDecaySlider.value = movementErrorDecay;
+        if (firingErrorAmountSlider) firingErrorAmountSlider.value = firingErrorAmount;
+        if (firingErrorDecaySlider) firingErrorDecaySlider.value = firingErrorDecay;
+        if (frameRotationSlider) frameRotationSlider.value = frameRotation;
+        if (hairsRotationSlider) hairsRotationSlider.value = hairsRotation;
+        if (dotRotationSlider) dotRotationSlider.value = dotRotation;
+    }
+
+    private void SetupToggles()
+    {
+        if (enableCrosshairToggle)
         {
-            case RefType.FrameSaturation:
-                if (frameSaturationRefFadeCoroutine != null) StopCoroutine(frameSaturationRefFadeCoroutine);
-                frameSaturationRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.FrameSaturation));
-                break;
-            case RefType.FrameValue:
-                if (frameValueRefFadeCoroutine != null) StopCoroutine(frameValueRefFadeCoroutine);
-                frameValueRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.FrameValue));
-                break;
-            case RefType.HairSaturation:
-                if (hairSaturationRefFadeCoroutine != null) StopCoroutine(hairSaturationRefFadeCoroutine);
-                hairSaturationRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.HairSaturation));
-                break;
-            case RefType.HairValue:
-                if (hairValueRefFadeCoroutine != null) StopCoroutine(hairValueRefFadeCoroutine);
-                hairValueRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.HairValue));
-                break;
-            case RefType.DotSaturation:
-                if (dotSaturationRefFadeCoroutine != null) StopCoroutine(dotSaturationRefFadeCoroutine);
-                dotSaturationRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.DotSaturation));
-                break;
-            case RefType.DotValue:
-                if (dotValueRefFadeCoroutine != null) StopCoroutine(dotValueRefFadeCoroutine);
-                dotValueRefFadeCoroutine = StartCoroutine(FadeOutReference(refObj, refRenderer, RefType.DotValue));
-                break;
+            enableCrosshairToggle.isOn = enableCrosshair;
+            enableCrosshairToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                enableCrosshair = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (enableOutlineToggle)
+        {
+            enableOutlineToggle.isOn = enableOutline;
+            enableOutlineToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                enableOutline = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (enableDotToggle)
+        {
+            enableDotToggle.isOn = enableDot;
+            enableDotToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                enableDot = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (dotOutlineToggle)
+        {
+            dotOutlineToggle.isOn = dotOutline;
+            dotOutlineToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                dotOutline = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (enableFrameToggle)
+        {
+            enableFrameToggle.isOn = enableFrame;
+            enableFrameToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                enableFrame = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (frameOutlineToggle)
+        {
+            frameOutlineToggle.isOn = frameOutline;
+            frameOutlineToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                frameOutline = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (enableHairsToggle)
+        {
+            enableHairsToggle.isOn = enableHairs;
+            enableHairsToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                enableHairs = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (hairsOutlineToggle)
+        {
+            hairsOutlineToggle.isOn = hairsOutline;
+            hairsOutlineToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                hairsOutline = val;
+                SetVerticesDirty();
+            });
+        }
+
+        if (enableMovementErrorToggle)
+        {
+            enableMovementErrorToggle.isOn = enableMovementError;
+            enableMovementErrorToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                enableMovementError = val;
+            });
+        }
+
+        if (enableFiringErrorToggle)
+        {
+            enableFiringErrorToggle.isOn = enableFiringError;
+            enableFiringErrorToggle.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
+                enableFiringError = val;
+            });
+        }
+
+        if (snapToggle)
+        {
+            snapToggle.isOn = SnapEnabled;
+            snapToggle.onValueChanged.AddListener(val => {
+                SnapEnabled = val;
+                
+                if (SnapEnabled)
+                {
+                    if (frameRotationSlider)
+                    {
+                        float snappedValue = Mathf.Round(frameRotation / 45f) * 45f;
+                        frameRotation = snappedValue;
+                        frameRotationSlider.value = snappedValue;
+                    }
+                    
+                    if (hairsRotationSlider)
+                    {
+                        float snappedValue = Mathf.Round(hairsRotation / 45f) * 45f;
+                        hairsRotation = snappedValue;
+                        hairsRotationSlider.value = snappedValue;
+                    }
+                    
+                    if (dotRotationSlider)
+                    {
+                        float snappedValue = Mathf.Round(dotRotation / 45f) * 45f;
+                        dotRotation = snappedValue;
+                        dotRotationSlider.value = snappedValue;
+                    }
+                    
+                    SetVerticesDirty();
+                }
+            });
         }
     }
 
-    System.Collections.IEnumerator FadeOutPreview(GameObject previewObj, SpriteRenderer previewRenderer, PreviewType type)
+    private void SetupKeybindUI()
     {
-        yield return new WaitForSeconds(previewFadeDelay);
-        float t = 0f;
-        Color startColor = previewRenderer.color;
-        while (t < previewFadeDuration)
+        if (keybindButton) keybindButton.onClick.AddListener(StartKeybindDetection);
+        if (clearKeybindButton) clearKeybindButton.onClick.AddListener(ClearKeybind);
+        if (confirmKeybindButton) confirmKeybindButton.onClick.AddListener(ConfirmKeybind);
+        if (cancelKeybindButton) cancelKeybindButton.onClick.AddListener(CancelKeybind);
+    }
+
+    private void SetupColorPicker()
+    {
+        if (hueSlider) hueSlider.onValueChanged.AddListener(UpdateColorPreview);
+        if (satSlider) satSlider.onValueChanged.AddListener(UpdateColorPreview);
+        if (valSlider) valSlider.onValueChanged.AddListener(UpdateColorPreview);
+        if (alphaSlider) alphaSlider.onValueChanged.AddListener(UpdateColorPreview);
+        if (colorConfirmButton) colorConfirmButton.onClick.AddListener(ConfirmColor);
+        if (colorCancelButton) colorCancelButton.onClick.AddListener(CancelColor);
+        if (hexInput) hexInput.onEndEdit.AddListener(OnHexInputChanged);
+    }
+
+    private void SetupPresets()
+    {
+        if (presetDropdown)
         {
-            t += Time.deltaTime;
-            float alpha = Mathf.Lerp(1f, 0f, t / previewFadeDuration);
-            previewRenderer.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
-            yield return null;
-        }
-        previewObj.SetActive(false);
-        // Reset alpha for next time
-        previewRenderer.color = new Color(startColor.r, startColor.g, startColor.b, 1f);
-        // Null out coroutine reference
-        switch (type) {
-            case PreviewType.Frame: framePreviewFadeCoroutine = null; break;
-            case PreviewType.Hair: hairPreviewFadeCoroutine = null; break;
-            case PreviewType.Dot: dotPreviewFadeCoroutine = null; break;
+            presetDropdown.onValueChanged.AddListener(OnPresetChanged);
         }
     }
 
-    System.Collections.IEnumerator FadeOutReference(GameObject refObj, SpriteRenderer refRenderer, RefType type)
+    private void OnPresetChanged(int newIndex)
     {
-        yield return new WaitForSeconds(refFadeDelay);
-        float t = 0f;
-        Color startColor = refRenderer.color;
-        while (t < refFadeDuration)
-        {
-            t += Time.deltaTime;
-            float alpha = Mathf.Lerp(1f, 0f, t / refFadeDuration);
-            refRenderer.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
-            yield return null;
-        }
-        refObj.SetActive(false);
-        refRenderer.color = new Color(startColor.r, startColor.g, startColor.b, 1f);
-        // Null out coroutine reference
-        switch (type)
-        {
-            case RefType.FrameSaturation: frameSaturationRefFadeCoroutine = null; break;
-            case RefType.FrameValue: frameValueRefFadeCoroutine = null; break;
-            case RefType.HairSaturation: hairSaturationRefFadeCoroutine = null; break;
-            case RefType.HairValue: hairValueRefFadeCoroutine = null; break;
-            case RefType.DotSaturation: dotSaturationRefFadeCoroutine = null; break;
-            case RefType.DotValue: dotValueRefFadeCoroutine = null; break;
-        }
-    }
-
-    // --- Color Picker Placeholder ---
-    // (Removed old color picker logic)
-
-    private bool crosshairHidden = false;
-
-    public void ToggleCrosshair()
-    {
-        crosshairHidden = !crosshairHidden;
-        if (crosshairHidden)
-        {
-            raycastTarget = false;
-            canvasRenderer.cull = true;
-        }
-        else
-        {
-            raycastTarget = false; // keep clickthrough
-            canvasRenderer.cull = false;
-            SetVerticesDirty();
-        }
-        UpdateHideCrosshairButtonText();
-        UpdateHideCrosshairButtonSprite();
-    }
-
-    private void UpdateHideCrosshairButtonText()
-    {
-        if (hideCrosshairButton)
-        {
-            var text = hideCrosshairButton.GetComponentInChildren<TMPro.TMP_Text>();
-            if (text)
-                text.text = crosshairHidden ? "Show Crosshair" : "Hide Crosshair";
-        }
-    }
-
-    private void UpdateHideCrosshairButtonSprite()
-    {
-        if (hideCrosshairButtonImage != null)
-        {
-            if (crosshairHidden)
-            {
-                if (crosshairHiddenSprite != null)
-                    hideCrosshairButtonImage.sprite = crosshairHiddenSprite;
-            }
-            else
-            {
-                if (crosshairVisibleSprite != null)
-                    hideCrosshairButtonImage.sprite = crosshairVisibleSprite;
-            }
-        }
-    }
-
-    private void OnApplicationQuit()
-    {
-        // Save current crosshair to active preset before quitting
+        if (isLoadingPreset) return;
+        
+        // Autosave current preset before switching
         presets[currentPresetIndex] = GenerateCrosshairCode();
         SavePresetToStorage(currentPresetIndex);
         
-        // Save all presets to ensure nothing is lost
-        for (int i = 0; i < PRESET_COUNT; i++)
-        {
-            SavePresetToStorage(i);
-        }
-        
-        // Save preset keybinds
-        SavePresetKeybindsToStorage();
-        
-        Debug.Log("All presets and keybinds saved before application quit");
+        // Switch to new preset
+        SwitchToPreset(newIndex);
     }
 
-    // --- Preset System Methods ---
-    private void SetupPresetSystem()
+    private void LoadPresets()
     {
-        // Initialize preset dropdown
+        presets.Clear();
+        
+        for (int i = 0; i < 5; i++)
+        {
+            string key = $"CrosshairPreset_{i}";
+            string presetCode = PlayerPrefs.GetString(key, "");
+            
+            if (string.IsNullOrEmpty(presetCode))
+            {
+                presetCode = GenerateDefaultPreset(i);
+            }
+            
+            presets.Add(presetCode);
+        }
+
         if (presetDropdown != null)
         {
             presetDropdown.ClearOptions();
-            var options = new List<string>();
-            for (int i = 0; i < PRESET_COUNT; i++)
+            List<string> options = new List<string>();
+            for (int i = 0; i < presets.Count; i++)
             {
                 options.Add($"Preset {i + 1}");
             }
             presetDropdown.AddOptions(options);
             presetDropdown.value = currentPresetIndex;
-            presetDropdown.onValueChanged.AddListener(OnPresetChanged);
         }
-        
-        // Load presets from PlayerPrefs or initialize with defaults
-        LoadPresetsFromStorage();
-        
-        // Load the first preset automatically
-        LoadCrosshairFromCode(presets[currentPresetIndex]);
-        Debug.Log($"Loaded Preset {currentPresetIndex + 1} on startup");
+
+        if (presets.Count > 0)
+        {
+            LoadCrosshairFromCode(presets[currentPresetIndex]);
+        }
     }
 
-    private void LoadPresetsFromStorage()
+    private string GenerateDefaultPreset(int index)
     {
-        for (int i = 0; i < PRESET_COUNT; i++)
+        switch (index)
         {
-            string key = $"CrosshairPreset_{i}";
-            if (PlayerPrefs.HasKey(key))
+            case 0: return "OVERPLAY-CROSSHAIR-V3;1;FFFFFF;2;5;15;1;000000;1;1;FFFFFF;2;1;000000;1;0;FFFFFF;2;30;1;000000;1;0;FFFFFF;1;50;1;000000;1;0;2;0.95;0;5;0.9;0;0;0";
+            case 1: return "OVERPLAY-CROSSHAIR-V3;1;00FF00;3;3;20;1;000000;1;1;00FF00;3;1;000000;1;0;FFFFFF;2;30;1;000000;1;0;FFFFFF;1;50;1;000000;1;0;2;0.95;0;5;0.9;0;0;0";
+            case 2: return "OVERPLAY-CROSSHAIR-V3;1;FF0000;1;8;12;1;000000;1;0;FF0000;4;0;000000;1;0;FFFFFF;2;30;1;000000;1;0;FFFFFF;1;50;1;000000;1;0;2;0.95;0;5;0.9;0;0;0";
+            case 3: return "OVERPLAY-CROSSHAIR-V3;0;FFFFFF;2;5;15;1;000000;1;1;FFFF00;1;1;000000;1;1;FFFF00;1;25;1;000000;1;0;FFFFFF;1;50;1;000000;1;0;2;0.95;0;5;0.9;0;0;0";
+            case 4: return "OVERPLAY-CROSSHAIR-V3;1;FFFFFF;1;0;25;0;000000;1;1;FFFFFF;1;1;000000;1;0;FFFFFF;2;30;1;000000;1;1;FFFFFF;2;100;1;000000;1;0;2;0.95;0;5;0.9;45;90;0";
+            default: return "OVERPLAY-CROSSHAIR-V3;1;FFFFFF;2;5;15;1;000000;1;1;FFFFFF;2;1;000000;1;0;FFFFFF;2;30;1;000000;1;0;FFFFFF;1;50;1;000000;1;0;2;0.95;0;5;0.9;0;0;0";
+        }
+    }
+
+    private void SavePresetToStorage(int index)
+    {
+        if (index >= 0 && index < presets.Count)
+        {
+            string key = $"CrosshairPreset_{index}";
+            PlayerPrefs.SetString(key, presets[index]);
+            PlayerPrefs.Save();
+        }
+    }
+
+    private void UpdateStatusText()
+    {
+        if (statusText != null)
+        {
+            string keybindStr = keybind.Count > 0 ? string.Join(" + ", keybind.Select(GetKeybindDisplayName)) : "None";
+            statusText.text = $"Toggle Key: {keybindStr} | UI: {(uiVisible ? "Visible" : "Hidden")}";
+        }
+    }
+
+    private string GetKeybindDisplayName(KeybindEntry entry)
+    {
+        if (entry.specialKey != SpecialKey.None)
+        {
+            switch (entry.specialKey)
             {
-                presets[i] = PlayerPrefs.GetString(key);
-                Debug.Log($"Loaded Preset {i + 1} from storage");
+                case SpecialKey.MouseLeft: return "LMB";
+                case SpecialKey.MouseRight: return "RMB";
+                case SpecialKey.MouseMiddle: return "MMB";
+                case SpecialKey.MouseWheelUp: return "MWU";
+                case SpecialKey.MouseWheelDown: return "MWD";
+                default: return entry.specialKey.ToString();
+            }
+        }
+        return entry.keyCode.ToString();
+    }
+
+    private void StartKeybindDetection()
+    {
+        detectingKeybind = true;
+        tempKeybind.Clear();
+        if (keybindPopup) keybindPopup.SetActive(true);
+        UpdateKeybindPreview();
+    }
+
+    private void ClearKeybind()
+    {
+        keybind.Clear();
+        UpdateKeybindText();
+        UpdateStatusText();
+    }
+
+    private void ConfirmKeybind()
+    {
+        keybind.Clear();
+        keybind.AddRange(tempKeybind);
+        detectingKeybind = false;
+        if (keybindPopup) keybindPopup.SetActive(false);
+        UpdateKeybindText();
+        UpdateStatusText();
+    }
+
+    private void CancelKeybind()
+    {
+        detectingKeybind = false;
+        tempKeybind.Clear();
+        if (keybindPopup) keybindPopup.SetActive(false);
+        UpdateKeybindText();
+    }
+
+    private void UpdateKeybindText()
+    {
+        if (keybindText != null)
+        {
+            if (keybind.Count > 0)
+            {
+                keybindText.text = string.Join(" + ", keybind.Select(GetKeybindDisplayName));
             }
             else
             {
-                presets[i] = GenerateCrosshairCode();
-                PlayerPrefs.SetString(key, presets[i]);
-                Debug.Log($"Initialized Preset {i + 1} with defaults");
+                keybindText.text = "None";
             }
         }
-        PlayerPrefs.Save();
     }
 
-    private void SavePresetToStorage(int presetIndex)
+    private void OpenColorPicker(Color currentColor, System.Action<Color> callback)
     {
-        string key = $"CrosshairPreset_{presetIndex}";
-        PlayerPrefs.SetString(key, presets[presetIndex]);
-        PlayerPrefs.Save();
-        Debug.Log($"Saved Preset {presetIndex + 1} to storage");
+        targetColor = currentColor;
+        colorCallback = callback;
+        
+        Color.RGBToHSV(currentColor, out float h, out float s, out float v);
+        
+        if (hueSlider) hueSlider.value = h;
+        if (satSlider) satSlider.value = s;
+        if (valSlider) valSlider.value = v;
+        if (alphaSlider) alphaSlider.value = currentColor.a;
+        
+        UpdateColorPreview(0);
+        UpdateHexInput();
+        
+        if (colorPickerContainer) colorPickerContainer.SetActive(true);
     }
 
-    private void OnPresetChanged(int newIndex)
+    private void UpdateColorPreview(float value)
     {
-        // Autosave current preset before switching (dropdown only)
-        presets[currentPresetIndex] = GenerateCrosshairCode();
-        SavePresetToStorage(currentPresetIndex);
-        currentPresetIndex = newIndex;
-        LoadCrosshairFromCode(presets[currentPresetIndex]);
-        Debug.Log($"Switched to Preset {newIndex + 1}");
-    }
-
-    private void SwitchToPreset(int presetIndex)
-    {
-        if (presetIndex >= 0 && presetIndex < PRESET_COUNT)
+        if (hueSlider && satSlider && valSlider && alphaSlider)
         {
-            currentPresetIndex = presetIndex;
-            if (presetDropdown != null)
-            {
-                // Remove listener to prevent autosave
-                presetDropdown.onValueChanged.RemoveListener(OnPresetChanged);
-                presetDropdown.value = currentPresetIndex;
-                // Re-add listener
-                presetDropdown.onValueChanged.AddListener(OnPresetChanged);
-            }
-            LoadCrosshairFromCode(presets[currentPresetIndex]);
-            Debug.Log($"Switched to Preset {presetIndex + 1} via keybind");
+            Color newColor = Color.HSVToRGB(hueSlider.value, satSlider.value, valSlider.value);
+            newColor.a = alphaSlider.value;
+            targetColor = newColor;
+            
+            if (colorPreview) colorPreview.color = targetColor;
+            UpdateHexInput();
         }
     }
 
-    private string GenerateCrosshairCode()
+    private void UpdateHexInput()
     {
-        // Frame section
-        string frameSection = string.Join(",",
-            "F",
-            FrameShapeToCode(frameShape),
-            frameFilled ? "1" : "0",
-            frameColor.r.ToString("F3"), frameColor.g.ToString("F3"), frameColor.b.ToString("F3"), frameColor.a.ToString("F3"),
-            frameOpacity.ToString("F3"),
-            frameScale.ToString("F3"),
-            frameRotation.ToString("F3"),
-            frameThickness.ToString("F3"),
-            frameHue.ToString("F3"), frameSaturation.ToString("F3"), frameValue.ToString("F3")
-        );
-        // Hairs section
-        string hairsSection = string.Join(",",
-            "H",
-            HairStyleToCode(hairStyle),
-            hairCount,
-            customAngle.ToString("F3"),
-            hairThickness.ToString("F3"),
-            hairLength.ToString("F3"),
-            hairColor.r.ToString("F3"), hairColor.g.ToString("F3"), hairColor.b.ToString("F3"), hairColor.a.ToString("F3"),
-            hairOpacity.ToString("F3"),
-            hairsRotation.ToString("F3"),
-            hairHue.ToString("F3"), hairSaturation.ToString("F3"), hairValue.ToString("F3"),
-            (hairsExtendPastFrameToggle != null && hairsExtendPastFrameToggle.isOn) ? "1" : "0"
-        );
-        // Dot section
-        string dotSection = string.Join(",",
-            "D",
-            FrameShapeToCode(dotShape),
-            dotFilled ? "1" : "0",
-            dotColor.r.ToString("F3"), dotColor.g.ToString("F3"), dotColor.b.ToString("F3"), dotColor.a.ToString("F3"),
-            dotOpacity.ToString("F3"),
-            dotScale.ToString("F3"),
-            dotRotation.ToString("F3"),
-            dotHue.ToString("F3"), dotSaturation.ToString("F3"), dotValue.ToString("F3")
-        );
-        return frameSection + ";" + hairsSection + ";" + dotSection;
+        if (hexInput)
+        {
+            string hex = ColorUtility.ToHtmlStringRGBA(targetColor);
+            hexInput.text = hex;
+        }
     }
 
-    private void LoadCrosshairFromCode(string code)
+    private void OnHexInputChanged(string hexValue)
+    {
+        if (ColorUtility.TryParseHtmlString("#" + hexValue, out Color newColor))
+        {
+            targetColor = newColor;
+            
+            Color.RGBToHSV(newColor, out float h, out float s, out float v);
+            
+            if (hueSlider) hueSlider.value = h;
+            if (satSlider) satSlider.value = s;
+            if (valSlider) valSlider.value = v;
+            if (alphaSlider) alphaSlider.value = newColor.a;
+            if (colorPreview) colorPreview.color = targetColor;
+        }
+    }
+
+    private void ConfirmColor()
+    {
+        colorCallback?.Invoke(targetColor);
+        if (colorPickerContainer) colorPickerContainer.SetActive(false);
+        SetVerticesDirty();
+    }
+
+    private void CancelColor()
+    {
+        if (colorPickerContainer) colorPickerContainer.SetActive(false);
+    }
+
+    private void ImportCrosshair()
+    {
+        if (crosshairCodeInput != null && !string.IsNullOrEmpty(crosshairCodeInput.text))
+        {
+            LoadCrosshairFromCode(crosshairCodeInput.text);
+        }
+    }
+
+    private void ExportCrosshair()
+    {
+        if (crosshairCodeInput != null)
+        {
+            crosshairCodeInput.text = GenerateCrosshairCode();
+        }
+    }
+
+    private void ResetCrosshair()
+    {
+        enableCrosshair = true;
+        crosshairColor = Color.white;
+        crosshairThickness = 2f;
+        crosshairGap = 5f;
+        crosshairLength = 15f;
+        enableOutline = true;
+        outlineColor = Color.black;
+        outlineThickness = 1f;
+        enableDot = true;
+        dotColor = Color.white;
+        dotSize = 2f;
+        dotOutline = true;
+        dotOutlineColor = Color.black;
+        dotOutlineThickness = 1f;
+        enableFrame = false;
+        frameColor = Color.white;
+        frameThickness = 2f;
+        frameSize = 30f;
+        frameOutline = true;
+        frameOutlineColor = Color.black;
+        frameOutlineThickness = 1f;
+        enableHairs = false;
+        hairsColor = Color.white;
+        hairsThickness = 1f;
+        hairsLength = 50f;
+        hairsOutline = true;
+        hairsOutlineColor = Color.black;
+        hairsOutlineThickness = 1f;
+        enableMovementError = false;
+        movementErrorAmount = 2f;
+        movementErrorDecay = 0.95f;
+        enableFiringError = false;
+        firingErrorAmount = 5f;
+        firingErrorDecay = 0.9f;
+        frameRotation = 0f;
+        hairsRotation = 0f;
+        dotRotation = 0f;
+
+        UpdateSliderValues();
+        UpdateToggleValues();
+        SetVerticesDirty();
+    }
+
+    private void UpdateSliderValues()
+    {
+        if (crosshairThicknessSlider) crosshairThicknessSlider.value = crosshairThickness;
+        if (crosshairGapSlider) crosshairGapSlider.value = crosshairGap;
+        if (crosshairLengthSlider) crosshairLengthSlider.value = crosshairLength;
+        if (outlineThicknessSlider) outlineThicknessSlider.value = outlineThickness;
+        if (dotSizeSlider) dotSizeSlider.value = dotSize;
+        if (dotOutlineThicknessSlider) dotOutlineThicknessSlider.value = dotOutlineThickness;
+        if (frameThicknessSlider) frameThicknessSlider.value = frameThickness;
+        if (frameSizeSlider) frameSizeSlider.value = frameSize;
+        if (frameOutlineThicknessSlider) frameOutlineThicknessSlider.value = frameOutlineThickness;
+        if (hairsThicknessSlider) hairsThicknessSlider.value = hairsThickness;
+        if (hairsLengthSlider) hairsLengthSlider.value = hairsLength;
+        if (hairsOutlineThicknessSlider) hairsOutlineThicknessSlider.value = hairsOutlineThickness;
+        if (movementErrorAmountSlider) movementErrorAmountSlider.value = movementErrorAmount;
+        if (movementErrorDecaySlider) movementErrorDecaySlider.value = movementErrorDecay;
+        if (firingErrorAmountSlider) firingErrorAmountSlider.value = firingErrorAmount;
+        if (firingErrorDecaySlider) firingErrorDecaySlider.value = firingErrorDecay;
+        if (frameRotationSlider) frameRotationSlider.value = frameRotation;
+        if (hairsRotationSlider) hairsRotationSlider.value = hairsRotation;
+        if (dotRotationSlider) dotRotationSlider.value = dotRotation;
+    }
+
+    private void UpdateToggleValues()
+    {
+        if (enableCrosshairToggle) enableCrosshairToggle.isOn = enableCrosshair;
+        if (enableOutlineToggle) enableOutlineToggle.isOn = enableOutline;
+        if (enableDotToggle) enableDotToggle.isOn = enableDot;
+        if (dotOutlineToggle) dotOutlineToggle.isOn = dotOutline;
+        if (enableFrameToggle) enableFrameToggle.isOn = enableFrame;
+        if (frameOutlineToggle) frameOutlineToggle.isOn = frameOutline;
+        if (enableHairsToggle) enableHairsToggle.isOn = enableHairs;
+        if (hairsOutlineToggle) hairsOutlineToggle.isOn = hairsOutline;
+        if (enableMovementErrorToggle) enableMovementErrorToggle.isOn = enableMovementError;
+        if (enableFiringErrorToggle) enableFiringErrorToggle.isOn = enableFiringError;
+    }
+
+    private void CopyCrosshairCode()
+    {
+        string code = GenerateCrosshairCode();
+        GUIUtility.systemCopyBuffer = code;
+        Debug.Log("Crosshair code copied to clipboard");
+    }
+
+    private void PasteCrosshairCode()
+    {
+        string code = GUIUtility.systemCopyBuffer;
+        if (!string.IsNullOrEmpty(code))
+        {
+            LoadCrosshairFromCode(code);
+            if (crosshairCodeInput != null)
+            {
+                crosshairCodeInput.text = code;
+            }
+        }
+    }
+
+    public string GenerateCrosshairCode()
+    {
+        List<string> values = new List<string>
+        {
+            "OVERPLAY-CROSSHAIR-V3",
+            enableCrosshair ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(crosshairColor),
+            crosshairThickness.ToString("F1", CultureInfo.InvariantCulture),
+            crosshairGap.ToString("F1", CultureInfo.InvariantCulture),
+            crosshairLength.ToString("F1", CultureInfo.InvariantCulture),
+            enableOutline ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(outlineColor),
+            outlineThickness.ToString("F1", CultureInfo.InvariantCulture),
+            enableDot ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(dotColor),
+            dotSize.ToString("F1", CultureInfo.InvariantCulture),
+            dotOutline ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(dotOutlineColor),
+            dotOutlineThickness.ToString("F1", CultureInfo.InvariantCulture),
+            enableFrame ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(frameColor),
+            frameThickness.ToString("F1", CultureInfo.InvariantCulture),
+            frameSize.ToString("F1", CultureInfo.InvariantCulture),
+            frameOutline ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(frameOutlineColor),
+            frameOutlineThickness.ToString("F1", CultureInfo.InvariantCulture),
+            enableHairs ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(hairsColor),
+            hairsThickness.ToString("F1", CultureInfo.InvariantCulture),
+            hairsLength.ToString("F1", CultureInfo.InvariantCulture),
+            hairsOutline ? "1" : "0",
+            ColorUtility.ToHtmlStringRGB(hairsOutlineColor),
+            hairsOutlineThickness.ToString("F1", CultureInfo.InvariantCulture),
+            enableMovementError ? "1" : "0",
+            movementErrorAmount.ToString("F1", CultureInfo.InvariantCulture),
+            movementErrorDecay.ToString("F2", CultureInfo.InvariantCulture),
+            enableFiringError ? "1" : "0",
+            firingErrorAmount.ToString("F1", CultureInfo.InvariantCulture),
+            firingErrorDecay.ToString("F2", CultureInfo.InvariantCulture),
+            frameRotation.ToString("F0", CultureInfo.InvariantCulture),
+            hairsRotation.ToString("F0", CultureInfo.InvariantCulture),
+            dotRotation.ToString("F0", CultureInfo.InvariantCulture)
+        };
+
+        return string.Join(";", values);
+    }
+
+    public void LoadCrosshairFromCode(string code)
     {
         if (string.IsNullOrEmpty(code)) return;
-        string[] sections = code.Split(';');
-        foreach (var section in sections)
-        {
-            string[] parts = section.Split(',');
-            if (parts.Length == 0) continue;
-            switch (parts[0])
-            {
-                case "F":
-                    if (parts.Length >= 14)
-                    {
-                        frameShape = CodeToFrameShape(parts[1]);
-                        frameFilled = parts[2] == "1";
-                        frameColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
-                        frameOpacity = ParseF(parts[7]);
-                        frameScale = ParseF(parts[8]);
-                        frameRotation = ParseF(parts[9]);
-                        frameThickness = ParseF(parts[10]);
-                        frameHue = ParseF(parts[11]);
-                        frameSaturation = ParseF(parts[12]);
-                        frameValue = ParseF(parts[13]);
-                    }
-                    break;
-                case "H":
-                    if (parts.Length >= 17)
-                    {
-                        hairStyle = CodeToHairStyle(parts[1]);
-                        hairCount = int.Parse(parts[2]);
-                        customAngle = ParseF(parts[3]);
-                        hairThickness = ParseF(parts[4]);
-                        hairLength = ParseF(parts[5]);
-                        hairColor = new Color(ParseF(parts[6]), ParseF(parts[7]), ParseF(parts[8]), ParseF(parts[9]));
-                        hairOpacity = ParseF(parts[10]);
-                        hairsRotation = ParseF(parts[11]);
-                        hairHue = ParseF(parts[12]);
-                        hairSaturation = ParseF(parts[13]);
-                        hairValue = ParseF(parts[14]);
-                        if (hairsExtendPastFrameToggle != null)
-                            hairsExtendPastFrameToggle.isOn = parts[15] == "1";
-                    }
-                    break;
-                case "D":
-                    if (parts.Length >= 13)
-                    {
-                        dotShape = CodeToFrameShape(parts[1]);
-                        dotFilled = parts[2] == "1";
-                        dotColor = new Color(ParseF(parts[3]), ParseF(parts[4]), ParseF(parts[5]), ParseF(parts[6]));
-                        dotOpacity = ParseF(parts[7]);
-                        dotScale = ParseF(parts[8]);
-                        dotRotation = ParseF(parts[9]);
-                        dotHue = ParseF(parts[10]);
-                        dotSaturation = ParseF(parts[11]);
-                        dotValue = ParseF(parts[12]);
-                    }
-                    break;
-            }
-        }
-        SetVerticesDirty();
-        UpdateUIFromValues();
-    }
 
-    private void UpdateUIFromValues()
-    {
-        // Update UI sliders and dropdowns to match current values
-        if (frameShapeDropdown) frameShapeDropdown.value = (int)frameShape;
-        if (frameFilledToggle) frameFilledToggle.isOn = frameFilled;
-        if (frameOpacitySlider) frameOpacitySlider.value = frameOpacity;
-        if (frameScaleSlider) frameScaleSlider.value = frameScale;
-        if (frameRotationSlider) frameRotationSlider.value = frameRotation;
-        if (frameThicknessSlider) frameThicknessSlider.value = frameThickness;
-        if (frameColorSlider) frameColorSlider.value = frameHue;
-        if (frameSaturationSlider) frameSaturationSlider.value = frameSaturation;
-        if (frameValueSlider) frameValueSlider.value = frameValue;
-        
-        if (hairStyleDropdown) hairStyleDropdown.value = (int)hairStyle;
-        if (hairCountSlider) hairCountSlider.value = hairCount;
-        if (customAngleSlider) customAngleSlider.value = customAngle;
-        if (hairThicknessSlider) hairThicknessSlider.value = hairThickness;
-        if (hairLengthSlider) hairLengthSlider.value = hairLength;
-        if (hairsRotationSlider) hairsRotationSlider.value = hairsRotation;
-        if (hairColorSlider) hairColorSlider.value = hairHue;
-        if (hairSaturationSlider) hairSaturationSlider.value = hairSaturation;
-        if (hairValueSlider) hairValueSlider.value = hairValue;
-        if (hairOpacitySlider) hairOpacitySlider.value = hairOpacity;
-        
-        if (dotShapeDropdown) dotShapeDropdown.value = (int)dotShape;
-        if (dotFilledToggle) dotFilledToggle.isOn = dotFilled;
-        if (dotColorSlider) dotColorSlider.value = dotHue;
-        if (dotSaturationSlider) dotSaturationSlider.value = dotSaturation;
-        if (dotValueSlider) dotValueSlider.value = dotValue;
-        if (dotOpacitySlider) dotOpacitySlider.value = dotOpacity;
-        if (dotScaleSlider) dotScaleSlider.value = dotScale;
-        if (dotRotationSlider) dotRotationSlider.value = dotRotation;
-        
-        UpdateHairUI();
-    }
+        string[] parts = code.Split(';');
+        if (parts.Length < 39 || parts[0] != "OVERPLAY-CROSSHAIR-V3") return;
 
-    // --- Preset Keybind System Methods ---
-    private void SetupPresetKeybindSystem()
-    {
-        // Initialize preset keybinds
-        for (int i = 0; i < PRESET_COUNT; i++)
-        {
-            presetKeybinds[i] = new List<KeybindEntry>();
-            presetHoldModes[i] = false;
-            presetKeybindWasHeld[i] = false;
-            presetReturnIndex[i] = 0;
-        }
-        
-        // Load preset keybinds from storage
-        LoadPresetKeybindsFromStorage();
-        
-        // Setup UI
-        if (presetKeybindsToggle != null)
-        {
-            presetKeybindsToggle.onValueChanged.AddListener(OnPresetKeybindsToggleChanged);
-        }
-        
-        if (presetKeybindButtons != null)
-        {
-            for (int i = 0; i < presetKeybindButtons.Length && i < PRESET_COUNT; i++)
-            {
-                int presetIndex = i; // Capture for lambda
-                if (presetKeybindButtons[i] != null)
-                {
-                    presetKeybindButtons[i].onClick.AddListener(() => StartPresetKeybindRecording(presetIndex));
-                }
-            }
-        }
-        
-        if (presetHoldToggles != null)
-        {
-            for (int i = 0; i < presetHoldToggles.Length && i < PRESET_COUNT; i++)
-            {
-                int presetIndex = i; // Capture for lambda
-                if (presetHoldToggles[i] != null)
-                {
-                    presetHoldToggles[i].onValueChanged.AddListener((value) => OnPresetHoldToggleChanged(presetIndex, value));
-                }
-            }
-        }
-        
-        UpdatePresetKeybindButtonTexts();
-    }
-
-    private void OnPresetKeybindsToggleChanged(bool isOn)
-    {
-        if (presetKeybindsPanel != null)
-        {
-            presetKeybindsPanel.SetActive(isOn);
-        }
-    }
-
-    private void StartPresetKeybindRecording(int presetIndex)
-    {
-        recordingPresetKeybind = true;
-        recordingPresetIndex = presetIndex;
-        presetPressedKeys.Clear();
-        presetLastPressedKeys.Clear();
-        presetKeybindReleaseTimer = 0f;
-        
-        if (presetKeybindButtons[presetIndex] != null)
-        {
-            presetKeybindButtons[presetIndex].GetComponentInChildren<TMPro.TMP_Text>().text = "Press keys...";
-        }
-    }
-
-    private void OnPresetHoldToggleChanged(int presetIndex, bool isHold)
-    {
-        presetHoldModes[presetIndex] = isHold;
-        SavePresetKeybindsToStorage();
-    }
-
-    private void UpdatePresetKeybindButtonTexts()
-    {
-        for (int i = 0; i < presetKeybindButtons.Length && i < PRESET_COUNT; i++)
-        {
-            if (presetKeybindButtons[i] != null)
-            {
-                var text = presetKeybindButtons[i].GetComponentInChildren<TMPro.TMP_Text>();
-                if (text != null)
-                {
-                    text.text = KeybindToString(presetKeybinds[i]);
-                }
-            }
-            // Also update hold toggles
-            if (presetHoldToggles != null && i < presetHoldToggles.Length && presetHoldToggles[i] != null)
-            {
-                presetHoldToggles[i].isOn = presetHoldModes[i];
-            }
-        }
-        // Also update main UI toggle keybind button if you have one (optional)
-    }
-
-    private void LoadPresetKeybindsFromStorage()
-    {
-        for (int i = 0; i < PRESET_COUNT; i++)
-        {
-            string keybindKey = $"PresetKeybind_{i}";
-            string holdKey = $"PresetHold_{i}";
-            if (PlayerPrefs.HasKey(keybindKey))
-            {
-                string keybindString = PlayerPrefs.GetString(keybindKey);
-                presetKeybinds[i] = ParseKeybindString(keybindString);
-            }
-            presetHoldModes[i] = PlayerPrefs.GetInt(holdKey, 0) == 1;
-        }
-        // Load main UI toggle keybind
-        if (PlayerPrefs.HasKey("UIToggleKeybind"))
-        {
-            currentKeybind = ParseKeybindString(PlayerPrefs.GetString("UIToggleKeybind"));
-        }
-    }
-
-    private void SavePresetKeybindsToStorage()
-    {
-        for (int i = 0; i < PRESET_COUNT; i++)
-        {
-            string keybindKey = $"PresetKeybind_{i}";
-            string holdKey = $"PresetHold_{i}";
-            PlayerPrefs.SetString(keybindKey, KeybindToString(presetKeybinds[i]));
-            PlayerPrefs.SetInt(holdKey, presetHoldModes[i] ? 1 : 0);
-        }
-        // Save main UI toggle keybind
-        PlayerPrefs.SetString("UIToggleKeybind", KeybindToString(currentKeybind));
-        PlayerPrefs.Save();
-    }
-
-    private List<KeybindEntry> ParseKeybindString(string keybindString)
-    {
-        var keybind = new List<KeybindEntry>();
-        if (!string.IsNullOrEmpty(keybindString))
-        {
-            string[] parts = keybindString.Split('+');
-            foreach (string part in parts)
-            {
-                if (part.Trim().Equals("Mouse Left", StringComparison.OrdinalIgnoreCase))
-                {
-                    keybind.Add(new KeybindEntry(SpecialKey.MouseLeft));
-                }
-                else if (part.Trim().Equals("Mouse Right", StringComparison.OrdinalIgnoreCase))
-                {
-                    keybind.Add(new KeybindEntry(SpecialKey.MouseRight));
-                }
-                else if (part.Trim().Equals("Mouse Middle", StringComparison.OrdinalIgnoreCase))
-                {
-                    keybind.Add(new KeybindEntry(SpecialKey.MouseMiddle));
-                }
-                else if (part.Trim().Equals("Scroll Up", StringComparison.OrdinalIgnoreCase))
-                {
-                    keybind.Add(new KeybindEntry(SpecialKey.MouseWheelUp));
-                }
-                else if (part.Trim().Equals("Scroll Down", StringComparison.OrdinalIgnoreCase))
-                {
-                    keybind.Add(new KeybindEntry(SpecialKey.MouseWheelDown));
-                }
-                else if (System.Enum.TryParse(part.Trim(), out KeyCode keyCode))
-                {
-                    keybind.Add(new KeybindEntry(keyCode));
-                }
-            }
-        }
-        return keybind;
-    }
-
-    private void ShowTab(TabType type)
-    {
-        currentTab = type;
-        SetTabActive(frameTabRoot, type == TabType.Frame);
-        SetTabActive(hairTabRoot, type == TabType.Hair);
-        SetTabActive(dotTabRoot, type == TabType.Dot);
-
-        // Move and highlight tab buttons
-        UpdateTabButtonVisuals(type);
-    }
-
-    private void UpdateTabButtonVisuals(TabType activeTab)
-    {
-        // Helper to set target position, color, and scale
-        void SetTab(TabButtonAnimState anim, UnityEngine.UI.Button btn, Vector2 pos, bool highlight)
-        {
-            if (anim == null || btn == null) return;
-            anim.targetPos = pos;
-            anim.targetColor = highlight ? tabHighlightColor : tabNormalColor;
-            anim.targetScale = highlight ? tabHighlightScale : tabNormalScale;
-            if (highlight && anim.rt != null) anim.rt.SetAsLastSibling();
-        }
-        SetTab(frameTabAnim, frameTabButton, activeTab == TabType.Frame ? tabLeftPosition : (activeTab == TabType.Hair ? tabMiddlePosition : tabRightPosition), activeTab == TabType.Frame);
-        SetTab(hairTabAnim, hairTabButton, activeTab == TabType.Hair ? tabLeftPosition : (activeTab == TabType.Dot ? tabMiddlePosition : tabRightPosition), activeTab == TabType.Hair);
-        SetTab(dotTabAnim, dotTabButton, activeTab == TabType.Dot ? tabLeftPosition : (activeTab == TabType.Frame ? tabMiddlePosition : tabRightPosition), activeTab == TabType.Dot);
-    }
-
-    private void SetTabActive(GameObject tabRoot, bool active)
-    {
-        if (tabRoot == null) return;
-        tabRoot.SetActive(active);
-        var groups = tabRoot.GetComponentsInChildren<CanvasGroup>(true);
-        foreach (var cg in groups)
-        {
-            cg.interactable = active;
-            cg.blocksRaycasts = active;
-        }
-    }
-
-    public void SaveCrosshairCode()
-    {
-        // Save current crosshair to active preset
-        presets[currentPresetIndex] = GenerateCrosshairCode();
-        SavePresetToStorage(currentPresetIndex);
-        
-        // Copy to clipboard
-        GUIUtility.systemCopyBuffer = presets[currentPresetIndex];
-        Debug.Log($"Preset {currentPresetIndex + 1} saved and copied to clipboard: {presets[currentPresetIndex]}");
-    }
-
-    public void GenerateAndOpenImage()
-    {
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-        StartCoroutine(CaptureCrosshairScreenshotWithCode());
-#endif
-    }
-
-    // Helper to get a short hash for filenames
-    private string GetCodeHash(string code)
-    {
-        using (var sha1 = SHA1.Create())
-        {
-            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(code));
-            return BitConverter.ToString(hash).Replace("-", "").Substring(0, 8); // 8 hex chars
-        }
-    }
-
-    private System.Collections.IEnumerator CaptureCrosshairScreenshotWithCode()
-    {
-        yield return new WaitForEndOfFrame();
-        int screenWidth = UnityEngine.Screen.width;
-        int screenHeight = UnityEngine.Screen.height;
-        int captureSize = 256;
-        int x = (screenWidth - captureSize) / 2;
-        int y = (screenHeight - captureSize) / 2;
-        Texture2D screenshot = new Texture2D(captureSize, captureSize, TextureFormat.RGB24, false);
-        screenshot.ReadPixels(new Rect(x, y, captureSize, captureSize), 0, 0);
-        screenshot.Apply();
-        byte[] pngData = screenshot.EncodeToPNG();
-        if (pngData != null && pngData.Length > 0)
-        {
-            string code = GenerateCrosshairCode();
-            string hash = GetCodeHash(code);
-            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            string imageName = $"Crosshair_{hash}.png";
-            string codeName = $"Crosshair_{hash}.txt";
-            string imagePath = Path.Combine(desktop, imageName);
-            string codePath = Path.Combine(desktop, codeName);
-            File.WriteAllBytes(imagePath, pngData);
-            File.WriteAllText(codePath, code);
-            Debug.Log($"Crosshair screenshot saved to: {imagePath}");
-            Debug.Log($"Crosshair code saved to: {codePath}");
-            try
-            {
-                System.Diagnostics.Process.Start(imagePath);
-                Debug.Log($"Opened screenshot with default application: {imagePath}");
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"Failed to open screenshot: {e.Message}");
-            }
-        }
-        Destroy(screenshot);
-    }
-
-    private Texture2D RenderCrosshairPreview(int width, int height)
-    {
-        // Create a RenderTexture (not temporary since we're not using GetTemporary)
-        var rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
-        var prevRT = RenderTexture.active;
-        RenderTexture.active = rt;
-        GL.Clear(true, true, new Color(0,0,0,0));
-
-        // Create a temporary Canvas and CrosshairRenderer for offscreen rendering
-        var go = new GameObject("CrosshairPreviewTemp", typeof(RectTransform));
-        var canvasGO = new GameObject("CrosshairPreviewCanvas", typeof(Canvas));
-        var canvas = canvasGO.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceCamera;
-        var camGO = new GameObject("CrosshairPreviewCamera", typeof(Camera));
-        var cam = camGO.GetComponent<Camera>();
-        cam.orthographic = true;
-        cam.orthographicSize = height/1.5f; // Larger orthographic size to ensure full crosshair is visible
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = new Color(0,0,0,0);
-        cam.targetTexture = rt;
-        canvas.worldCamera = cam;
-        canvas.pixelPerfect = true;
-        canvas.planeDistance = 1;
-        go.transform.SetParent(canvasGO.transform, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(width, height);
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        var previewRenderer = go.AddComponent<CrosshairRenderer>();
-        // Copy all relevant fields
-        CopyCrosshairSettingsTo(previewRenderer);
-        previewRenderer.raycastTarget = false;
-        previewRenderer.SetVerticesDirty();
-        // Force render
-        canvasGO.SetActive(true);
-        cam.Render();
-        // Read pixels
-        Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-        tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-        tex.Apply();
-        // Cleanup
-        RenderTexture.active = prevRT;
-        cam.targetTexture = null;
-        GameObject.DestroyImmediate(go);
-        GameObject.DestroyImmediate(canvasGO);
-        GameObject.DestroyImmediate(camGO);
-        rt.Release(); // Use Release() instead of ReleaseTemporary() for manually created RenderTexture
-        return tex;
-    }
-
-    private void CopyCrosshairSettingsTo(CrosshairRenderer target)
-    {
-        // Copy all relevant fields
-        target.frameShape = frameShape;
-        target.frameFilled = frameFilled;
-        target.frameColor = frameColor;
-        target.frameOpacity = frameOpacity;
-        target.frameScale = frameScale;
-        target.frameRotation = frameRotation;
-        target.frameThickness = frameThickness;
-        target.hairStyle = hairStyle;
-        target.hairCount = hairCount;
-        target.customAngle = customAngle;
-        target.hairThickness = hairThickness;
-        target.hairLength = hairLength;
-        target.hairColor = hairColor;
-        target.hairOpacity = hairOpacity;
-        target.hairsRotation = hairsRotation;
-        target.dotShape = dotShape;
-        target.dotFilled = dotFilled;
-        target.dotColor = dotColor;
-        target.dotOpacity = dotOpacity;
-        target.dotScale = dotScale;
-        target.dotRotation = dotRotation;
-        target.frameHue = frameHue;
-        target.frameSaturation = frameSaturation;
-        target.frameValue = frameValue;
-        target.hairHue = hairHue;
-        target.hairSaturation = hairSaturation;
-        target.hairValue = hairValue;
-        target.dotHue = dotHue;
-        target.dotSaturation = dotSaturation;
-        target.dotValue = dotValue;
-        // For the toggle, just copy the value if present
-        if (target.hairsExtendPastFrameToggle != null && hairsExtendPastFrameToggle != null)
-            target.hairsExtendPastFrameToggle.isOn = hairsExtendPastFrameToggle.isOn;
-    }
-
-    public void LoadCrosshairCode()
-    {
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-        // Try to get file from clipboard
         try
         {
-            if (Clipboard.ContainsFileDropList())
-            {
-                var files = Clipboard.GetFileDropList();
-                if (files != null && files.Count > 0)
-                {
-                    string filePath = files[0];
-                    string fileName = Path.GetFileName(filePath);
-                    if (fileName.StartsWith("Crosshair_") && fileName.EndsWith(".png"))
-                    {
-                        string hash = fileName.Substring(10, fileName.Length - 14); // between _ and .png
-                        string codePath = Path.Combine(Path.GetDirectoryName(filePath), $"Crosshair_{hash}.txt");
-                        if (File.Exists(codePath))
-                        {
-                            string loadedCode = File.ReadAllText(codePath);
-                            if (!string.IsNullOrEmpty(loadedCode))
-                            {
-                                presets[currentPresetIndex] = loadedCode;
-                                SavePresetToStorage(currentPresetIndex);
-                                LoadCrosshairFromCode(loadedCode);
-                                Debug.Log($"Preset {currentPresetIndex + 1} loaded from image file: {fileName}");
-                                return;
-                            }
-                        }
-                        Debug.LogWarning($"No code file found for image: {fileName}");
-                        return;
-                    }
-                }
-            }
+            isLoadingPreset = true;
+
+            enableCrosshair = parts[1] == "1";
+            ColorUtility.TryParseHtmlString("#" + parts[2], out crosshairColor);
+            crosshairThickness = float.Parse(parts[3], CultureInfo.InvariantCulture);
+            crosshairGap = float.Parse(parts[4], CultureInfo.InvariantCulture);
+            crosshairLength = float.Parse(parts[5], CultureInfo.InvariantCulture);
+            enableOutline = parts[6] == "1";
+            ColorUtility.TryParseHtmlString("#" + parts[7], out outlineColor);
+            outlineThickness = float.Parse(parts[8], CultureInfo.InvariantCulture);
+            enableDot = parts[9] == "1";
+            ColorUtility.TryParseHtmlString("#" + parts[10], out dotColor);
+            dotSize = float.Parse(parts[11], CultureInfo.InvariantCulture);
+            dotOutline = parts[12] == "1";
+            ColorUtility.TryParseHtmlString("#" + parts[13], out dotOutlineColor);
+            dotOutlineThickness = float.Parse(parts[14], CultureInfo.InvariantCulture);
+            enableFrame = parts[15] == "1";
+            ColorUtility.TryParseHtmlString("#" + parts[16], out frameColor);
+            frameThickness = float.Parse(parts[17], CultureInfo.InvariantCulture);
+            frameSize = float.Parse(parts[18], CultureInfo.InvariantCulture);
+            frameOutline = parts[19] == "1";
+                        ColorUtility.TryParseHtmlString("#" + parts[20], out frameOutlineColor);
+            frameOutlineThickness = float.Parse(parts[21], CultureInfo.InvariantCulture);
+            enableHairs = parts[22] == "1";
+            ColorUtility.TryParseHtmlString("#" + parts[23], out hairsColor);
+            hairsThickness = float.Parse(parts[24], CultureInfo.InvariantCulture);
+            hairsLength = float.Parse(parts[25], CultureInfo.InvariantCulture);
+            hairsOutline = parts[26] == "1";
+            ColorUtility.TryParseHtmlString("#" + parts[27], out hairsOutlineColor);
+            hairsOutlineThickness = float.Parse(parts[28], CultureInfo.InvariantCulture);
+            enableMovementError = parts[29] == "1";
+            movementErrorAmount = float.Parse(parts[30], CultureInfo.InvariantCulture);
+            movementErrorDecay = float.Parse(parts[31], CultureInfo.InvariantCulture);
+            enableFiringError = parts[32] == "1";
+            firingErrorAmount = float.Parse(parts[33], CultureInfo.InvariantCulture);
+            firingErrorDecay = float.Parse(parts[34], CultureInfo.InvariantCulture);
+            frameRotation = float.Parse(parts[35], CultureInfo.InvariantCulture);
+            hairsRotation = float.Parse(parts[36], CultureInfo.InvariantCulture);
+            dotRotation = float.Parse(parts[37], CultureInfo.InvariantCulture);
+
+            UpdateSliderValues();
+            UpdateToggleValues();
+            SetVerticesDirty();
+
+            isLoadingPreset = false;
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"Clipboard file check failed: {e.Message}");
+            Debug.LogError($"Error loading crosshair code: {e.Message}");
+            isLoadingPreset = false;
         }
-#endif
-        // Fallback: use text clipboard
-        string code = GUIUtility.systemCopyBuffer;
-        if (string.IsNullOrEmpty(code))
-        {
-            Debug.LogWarning("No code in clipboard to load");
-            return;
-        }
-        // Check if clipboard is an image filename like Crosshair_{hash}.png (for text clipboard fallback)
-        if (code.StartsWith("Crosshair_") && code.EndsWith(".png"))
-        {
-            string hash = code.Substring(10, code.Length - 14); // between _ and .png
-            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            string codePath = Path.Combine(desktop, $"Crosshair_{hash}.txt");
-            if (File.Exists(codePath))
-            {
-                string loadedCode = File.ReadAllText(codePath);
-                if (!string.IsNullOrEmpty(loadedCode))
-                {
-                    presets[currentPresetIndex] = loadedCode;
-                    SavePresetToStorage(currentPresetIndex);
-                    LoadCrosshairFromCode(loadedCode);
-                    Debug.Log($"Preset {currentPresetIndex + 1} loaded from image filename: {code}");
-                    return;
-                }
-            }
-            Debug.LogWarning($"No code file found for image: {code}");
-            return;
-        }
-        // Otherwise, treat as regular code
-        presets[currentPresetIndex] = code;
-        SavePresetToStorage(currentPresetIndex);
-        LoadCrosshairFromCode(code);
-        Debug.Log($"Preset {currentPresetIndex + 1} loaded from clipboard: {code}");
     }
 
-    public void ClearToDefaults()
+    public void AddMovementError(Vector2 error)
     {
-        // Reset to default values (same as Awake)
-        frameShape = CrosshairShape.Circle;
-        frameFilled = false;
-        frameColor = Color.red;
-        frameOpacity = 1f;
-        frameScale = 0.9f;
-        frameRotation = 0f;
-        frameThickness = 5f;
-        
-        hairStyle = HairStyle.Even;
-        hairCount = 4;
-        customAngle = 0f;
-        hairThickness = 5.5f;
-        hairLength = 24f;
-        hairColor = Color.red;
-        hairOpacity = 1f;
-        hairsRotation = 0f;
-        
-        dotShape = CrosshairShape.Square;
-        dotFilled = true;
-        dotColor = Color.red;
-        dotOpacity = 1f;
-        dotScale = 0.9f;
-        dotRotation = 45f;
-        
-        frameHue = 1f;
-        frameSaturation = 1f;
-        frameValue = 1f;
-        hairHue = 1f;
-        hairSaturation = 1f;
-        hairValue = 1f;
-        dotHue = 1f;
-        dotSaturation = 1f;
-        dotValue = 1f;
-        
-        // Update UI to match
-        UpdateUIFromValues();
-        SetVerticesDirty();
-        
-        Debug.Log("Crosshair reset to defaults");
+        if (enableMovementError)
+        {
+            movementError += error * movementErrorAmount;
+        }
     }
 
-    private string FrameShapeToCode(CrosshairShape shape)
+    public void AddFiringError(Vector2 error)
     {
-        switch (shape)
+        if (enableFiringError)
         {
-            case CrosshairShape.Circle: return "C";
-            case CrosshairShape.Square: return "S";
-            case CrosshairShape.Triangle: return "T";
-            default: return "C";
+            firingError += error * firingErrorAmount;
         }
-    }
-    private CrosshairShape CodeToFrameShape(string code)
-    {
-        switch (code)
-        {
-            case "C": return CrosshairShape.Circle;
-            case "S": return CrosshairShape.Square;
-            case "T": return CrosshairShape.Triangle;
-            default: return CrosshairShape.Circle;
-        }
-    }
-    private string HairStyleToCode(HairStyle style)
-    {
-        switch (style)
-        {
-            case HairStyle.Even: return "E";
-            case HairStyle.Custom: return "U";
-            default: return "E";
-        }
-    }
-    private HairStyle CodeToHairStyle(string code)
-    {
-        switch (code)
-        {
-            case "E": return HairStyle.Even;
-            case "U": return HairStyle.Custom;
-            default: return HairStyle.Even;
-        }
-    }
-    private float ParseF(string s)
-    {
-        float f = 0f;
-        float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f);
-        return f;
     }
 
-    public void ClearAllPresetKeybinds()
+    protected override void OnPopulateMesh(VertexHelper vh)
     {
-        for (int i = 0; i < PRESET_COUNT; i++)
+        vh.Clear();
+
+        if (!enableCrosshair) return;
+
+        Vector2 center = rectTransform.rect.center;
+        Vector2 totalError = movementError + firingError;
+        Vector2 adjustedCenter = center + totalError;
+
+        if (enableCrosshair)
         {
-            presetKeybinds[i].Clear();
-            presetHoldModes[i] = false;
+            DrawCrosshair(vh, adjustedCenter);
         }
-        SavePresetKeybindsToStorage();
-        UpdatePresetKeybindButtonTexts();
+
+        if (enableDot)
+        {
+            DrawDot(vh, adjustedCenter);
+        }
+
+        if (enableFrame)
+        {
+            DrawFrame(vh, adjustedCenter);
+        }
+
+        if (enableHairs)
+        {
+            DrawHairs(vh, adjustedCenter);
+        }
     }
 
-    private void UpdateSaturationReferenceColor(SpriteRenderer refRenderer, float hue)
+    private void DrawCrosshair(VertexHelper vh, Vector2 center)
     {
-        if (refRenderer == null) return;
+        float halfGap = crosshairGap * 0.5f;
+        float halfThickness = crosshairThickness * 0.5f;
+
+        // Horizontal line
+        Vector2[] horizontalVerts = new Vector2[]
+        {
+            new Vector2(center.x - crosshairLength - halfGap, center.y - halfThickness),
+            new Vector2(center.x - halfGap, center.y - halfThickness),
+            new Vector2(center.x - halfGap, center.y + halfThickness),
+            new Vector2(center.x - crosshairLength - halfGap, center.y + halfThickness),
+            new Vector2(center.x + halfGap, center.y - halfThickness),
+            new Vector2(center.x + crosshairLength + halfGap, center.y - halfThickness),
+            new Vector2(center.x + crosshairLength + halfGap, center.y + halfThickness),
+            new Vector2(center.x + halfGap, center.y + halfThickness)
+        };
+
+        // Vertical line
+        Vector2[] verticalVerts = new Vector2[]
+        {
+            new Vector2(center.x - halfThickness, center.y - crosshairLength - halfGap),
+            new Vector2(center.x + halfThickness, center.y - crosshairLength - halfGap),
+            new Vector2(center.x + halfThickness, center.y - halfGap),
+            new Vector2(center.x - halfThickness, center.y - halfGap),
+            new Vector2(center.x - halfThickness, center.y + halfGap),
+            new Vector2(center.x + halfThickness, center.y + halfGap),
+            new Vector2(center.x + halfThickness, center.y + crosshairLength + halfGap),
+            new Vector2(center.x - halfThickness, center.y + crosshairLength + halfGap)
+        };
+
+        if (enableOutline)
+        {
+            DrawOutlinedQuads(vh, horizontalVerts, crosshairColor, outlineColor, outlineThickness);
+            DrawOutlinedQuads(vh, verticalVerts, crosshairColor, outlineColor, outlineThickness);
+        }
+        else
+        {
+            DrawQuads(vh, horizontalVerts, crosshairColor);
+            DrawQuads(vh, verticalVerts, crosshairColor);
+        }
+    }
+
+    private void DrawDot(VertexHelper vh, Vector2 center)
+    {
+        float rotationRad = dotRotation * Mathf.Deg2Rad;
+        float halfSize = dotSize * 0.5f;
+
+        Vector2[] dotVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x - halfSize, center.y - halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize, center.y - halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize, center.y + halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfSize, center.y + halfSize), center, rotationRad)
+        };
+
+        if (dotOutline)
+        {
+            DrawOutlinedQuad(vh, dotVerts, dotColor, dotOutlineColor, dotOutlineThickness);
+        }
+        else
+        {
+            DrawQuad(vh, dotVerts, dotColor);
+        }
+    }
+
+    private void DrawFrame(VertexHelper vh, Vector2 center)
+    {
+        float rotationRad = frameRotation * Mathf.Deg2Rad;
+        float halfSize = frameSize * 0.5f;
+        float halfThickness = frameThickness * 0.5f;
+
+        // Top
+        Vector2[] topVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x - halfSize, center.y + halfSize - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize, center.y + halfSize - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize, center.y + halfSize + halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfSize, center.y + halfSize + halfThickness), center, rotationRad)
+        };
+
+        // Bottom
+        Vector2[] bottomVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x - halfSize, center.y - halfSize - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize, center.y - halfSize - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize, center.y - halfSize + halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfSize, center.y - halfSize + halfThickness), center, rotationRad)
+        };
+
+        // Left
+        Vector2[] leftVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x - halfSize - halfThickness, center.y - halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfSize + halfThickness, center.y - halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfSize + halfThickness, center.y + halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfSize - halfThickness, center.y + halfSize), center, rotationRad)
+        };
+
+        // Right
+        Vector2[] rightVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x + halfSize - halfThickness, center.y - halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize + halfThickness, center.y - halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize + halfThickness, center.y + halfSize), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfSize - halfThickness, center.y + halfSize), center, rotationRad)
+        };
+
+        if (frameOutline)
+        {
+            DrawOutlinedQuad(vh, topVerts, frameColor, frameOutlineColor, frameOutlineThickness);
+            DrawOutlinedQuad(vh, bottomVerts, frameColor, frameOutlineColor, frameOutlineThickness);
+            DrawOutlinedQuad(vh, leftVerts, frameColor, frameOutlineColor, frameOutlineThickness);
+            DrawOutlinedQuad(vh, rightVerts, frameColor, frameOutlineColor, frameOutlineThickness);
+        }
+        else
+        {
+            DrawQuad(vh, topVerts, frameColor);
+            DrawQuad(vh, bottomVerts, frameColor);
+            DrawQuad(vh, leftVerts, frameColor);
+            DrawQuad(vh, rightVerts, frameColor);
+        }
+    }
+
+    private void DrawHairs(VertexHelper vh, Vector2 center)
+    {
+        float rotationRad = hairsRotation * Mathf.Deg2Rad;
+        float halfThickness = hairsThickness * 0.5f;
+
+        // Top hair
+        Vector2[] topHairVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x - halfThickness, center.y), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfThickness, center.y), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfThickness, center.y + hairsLength), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfThickness, center.y + hairsLength), center, rotationRad)
+        };
+
+        // Bottom hair
+        Vector2[] bottomHairVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x - halfThickness, center.y - hairsLength), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfThickness, center.y - hairsLength), center, rotationRad),
+            RotatePoint(new Vector2(center.x + halfThickness, center.y), center, rotationRad),
+            RotatePoint(new Vector2(center.x - halfThickness, center.y), center, rotationRad)
+        };
+
+        // Left hair
+        Vector2[] leftHairVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x - hairsLength, center.y - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x, center.y - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x, center.y + halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x - hairsLength, center.y + halfThickness), center, rotationRad)
+        };
+
+        // Right hair
+        Vector2[] rightHairVerts = new Vector2[]
+        {
+            RotatePoint(new Vector2(center.x, center.y - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x + hairsLength, center.y - halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x + hairsLength, center.y + halfThickness), center, rotationRad),
+            RotatePoint(new Vector2(center.x, center.y + halfThickness), center, rotationRad)
+        };
+
+        if (hairsOutline)
+        {
+            DrawOutlinedQuad(vh, topHairVerts, hairsColor, hairsOutlineColor, hairsOutlineThickness);
+            DrawOutlinedQuad(vh, bottomHairVerts, hairsColor, hairsOutlineColor, hairsOutlineThickness);
+            DrawOutlinedQuad(vh, leftHairVerts, hairsColor, hairsOutlineColor, hairsOutlineThickness);
+            DrawOutlinedQuad(vh, rightHairVerts, hairsColor, hairsOutlineColor, hairsOutlineThickness);
+        }
+        else
+        {
+            DrawQuad(vh, topHairVerts, hairsColor);
+            DrawQuad(vh, bottomHairVerts, hairsColor);
+            DrawQuad(vh, leftHairVerts, hairsColor);
+            DrawQuad(vh, rightHairVerts, hairsColor);
+        }
+    }
+
+    private Vector2 RotatePoint(Vector2 point, Vector2 center, float angleRad)
+    {
+        float cos = Mathf.Cos(angleRad);
+        float sin = Mathf.Sin(angleRad);
+        Vector2 dir = point - center;
+        return center + new Vector2(dir.x * cos - dir.y * sin, dir.x * sin + dir.y * cos);
+    }
+
+    private void DrawQuad(VertexHelper vh, Vector2[] verts, Color color)
+    {
+        int startIndex = vh.currentVertCount;
         
-        // Get the current color
-        Color currentColor = refRenderer.color;
-        
-        // Convert the current color to HSV
-        Color.RGBToHSV(currentColor, out float h, out float s, out float v);
-        
-        // If the color is saturated (not grey), apply the new hue
-        if (s > 0.1f) // Threshold to detect if it's not grey
+        for (int i = 0; i < 4; i++)
         {
-            Color newColor = Color.HSVToRGB(hue, s, v);
-            refRenderer.color = new Color(newColor.r, newColor.g, newColor.b, currentColor.a);
+            vh.AddVert(verts[i], color, Vector2.zero);
         }
-        // Keep grey colors unchanged
+        
+        vh.AddTriangle(startIndex, startIndex + 1, startIndex + 2);
+        vh.AddTriangle(startIndex, startIndex + 2, startIndex + 3);
     }
 
-
-
-#if UNITY_EDITOR
-    void LateUpdate()
+    private void DrawQuads(VertexHelper vh, Vector2[] verts, Color color)
     {
-        if (Input.GetMouseButtonDown(0))
+        if (verts.Length >= 4)
         {
-            var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
-            {
-                position = Input.mousePosition
-            };
-            var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
-            UnityEngine.EventSystems.EventSystem.current.RaycastAll(pointer, results);
-            if (results.Count == 0)
-            {
-                // Debug.Log("No UI element under mouse.");
-            }
-            else
-            {
-                // foreach (var r in results)
-                // {
-                //     Debug.Log($"UI under mouse: {r.gameObject.name} (sortingLayer={r.sortingLayer}, sortingOrder={r.sortingOrder})");
-                // }
-            }
+            DrawQuad(vh, new Vector2[] { verts[0], verts[1], verts[2], verts[3] }, color);
+        }
+        if (verts.Length >= 8)
+        {
+            DrawQuad(vh, new Vector2[] { verts[4], verts[5], verts[6], verts[7] }, color);
         }
     }
-#endif
+
+    private void DrawOutlinedQuad(VertexHelper vh, Vector2[] verts, Color fillColor, Color outlineColor, float outlineWidth)
+    {
+        Vector2[] outlineVerts = ExpandQuad(verts, outlineWidth);
+        DrawQuad(vh, outlineVerts, outlineColor);
+        DrawQuad(vh, verts, fillColor);
+    }
+
+    private void DrawOutlinedQuads(VertexHelper vh, Vector2[] verts, Color fillColor, Color outlineColor, float outlineWidth)
+    {
+        if (verts.Length >= 4)
+        {
+            Vector2[] quad1 = new Vector2[] { verts[0], verts[1], verts[2], verts[3] };
+            DrawOutlinedQuad(vh, quad1, fillColor, outlineColor, outlineWidth);
+        }
+        if (verts.Length >= 8)
+        {
+            Vector2[] quad2 = new Vector2[] { verts[4], verts[5], verts[6], verts[7] };
+            DrawOutlinedQuad(vh, quad2, fillColor, outlineColor, outlineWidth);
+        }
+    }
+
+    private Vector2[] ExpandQuad(Vector2[] quad, float expansion)
+    {
+        Vector2 center = (quad[0] + quad[1] + quad[2] + quad[3]) * 0.25f;
+        Vector2[] expanded = new Vector2[4];
+        
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2 direction = (quad[i] - center).normalized;
+            expanded[i] = quad[i] + direction * expansion;
+        }
+        
+        return expanded;
+    }
 }
+
+            

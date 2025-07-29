@@ -1896,119 +1896,107 @@ MonoBehaviour:
   m_Color: {r: 0, g: 0.23907423, b: 1, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  frameShape: 0
-  frameFilled: 0
-  frameColor: {r: 1, g: 0, b: 0, a: 1}
-  frameOpacity: 1
-  frameScale: 0.9
-  frameRotation: 0
-  frameThickness: 5
-  hairStyle: 0
-  hairCount: 4
-  customAngle: 0
-  hairThickness: 5.5
-  hairLength: 24
-  hairColor: {r: 1, g: 0, b: 0, a: 1}
-  hairOpacity: 1
-  hairsRotation: 0
-  dotShape: 1
-  dotFilled: 1
+  enableCrosshair: 1
+  crosshairColor: {r: 1, g: 1, b: 1, a: 1}
+  crosshairThickness: 2
+  crosshairGap: 5
+  crosshairLength: 15
+  enableOutline: 1
+  outlineColor: {r: 0, g: 0, b: 0, a: 1}
+  outlineThickness: 1
+  enableDot: 1
   dotColor: {r: 1, g: 0, b: 0, a: 1}
-  dotOpacity: 1
-  dotScale: 0.9
+  dotSize: 2
+  dotOutline: 1
+  dotOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  dotOutlineThickness: 1
+  enableFrame: 0
+  frameColor: {r: 1, g: 0, b: 0, a: 1}
+  frameThickness: 5
+  frameSize: 30
+  frameOutline: 1
+  frameOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  frameOutlineThickness: 1
+  enableHairs: 0
+  hairsColor: {r: 1, g: 1, b: 1, a: 1}
+  hairsThickness: 1
+  hairsLength: 50
+  hairsOutline: 1
+  hairsOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  hairsOutlineThickness: 1
+  enableMovementError: 0
+  movementErrorAmount: 2
+  movementErrorDecay: 0.95
+  enableFiringError: 0
+  firingErrorAmount: 5
+  firingErrorDecay: 0.9
+  frameRotation: 0
+  hairsRotation: 0
   dotRotation: 45
-  frameHue: 1
-  frameSaturation: 1
-  frameValue: 1
-  hairHue: 1
-  hairSaturation: 1
-  hairValue: 1
-  dotHue: 1
-  dotSaturation: 1
-  dotValue: 1
-  frameShapeDropdown: {fileID: 1095493529}
-  frameFilledToggle: {fileID: 1432380718}
-  frameOpacitySlider: {fileID: 919290337}
-  frameScaleSlider: {fileID: 1816245648}
-  frameRotationSlider: {fileID: 2012511753}
-  frameThicknessSlider: {fileID: 1325881273}
-  frameColorSlider: {fileID: 317572312}
-  frameSaturationSlider: {fileID: 509344037}
-  frameValueSlider: {fileID: 1426577349}
-  frameColorPreviewObj: {fileID: 688802752}
-  frameSaturationRefObj: {fileID: 1516866966}
-  frameValueRefObj: {fileID: 1795706062}
-  hideCrosshairButton: {fileID: 1672294771}
-  hideCrosshairButtonImage: {fileID: 1672294772}
-  crosshairVisibleSprite: {fileID: -1372644416634842712, guid: 5b36b02e9962777469c94bee17ce0652,
-    type: 3}
-  crosshairHiddenSprite: {fileID: -3229214595544708935, guid: d6ea4128bde5c80418cecbb7eefeb35c,
-    type: 3}
-  hairStyleDropdown: {fileID: 600190184}
-  hairCountSlider: {fileID: 2056647979}
-  customAngleSlider: {fileID: 1668382030}
-  hairThicknessSlider: {fileID: 24055163}
-  hairLengthSlider: {fileID: 1094765944}
-  hairsRotationSlider: {fileID: 7244468}
-  hairColorSlider: {fileID: 1278301919}
-  hairSaturationSlider: {fileID: 23547931}
-  hairValueSlider: {fileID: 1490507840}
-  hairColorPreviewObj: {fileID: 1138307593}
-  hairSaturationRefObj: {fileID: 682173587}
-  hairValueRefObj: {fileID: 1698889246}
-  hairOpacitySlider: {fileID: 130273856}
-  hairsExtendPastFrameToggle: {fileID: 176041086}
-  hairDistanceSlider: {fileID: 1233459472}
-  dotShapeDropdown: {fileID: 2120541551}
-  dotFilledToggle: {fileID: 1823772143}
-  dotColorSlider: {fileID: 1992296677}
-  dotSaturationSlider: {fileID: 1473759480}
-  dotValueSlider: {fileID: 819002232}
-  dotColorPreviewObj: {fileID: 1332350292}
-  dotSaturationRefObj: {fileID: 1505365675}
-  dotValueRefObj: {fileID: 888714076}
-  dotOpacitySlider: {fileID: 1968306226}
-  dotScaleSlider: {fileID: 1373341706}
-  dotRotationSlider: {fileID: 118911920}
-  crosshairVisualRoot: {fileID: 147411962}
-  frameTabRoot: {fileID: 2096811452}
-  hairTabRoot: {fileID: 1692861896}
-  dotTabRoot: {fileID: 104191422}
-  frameTabButton: {fileID: 2124968279}
-  hairTabButton: {fileID: 1438048466}
-  dotTabButton: {fileID: 1734878658}
-  saveCodeButton: {fileID: 1209889771}
-  loadCodeButton: {fileID: 257693516}
-  generateImageButton: {fileID: 1211539575}
-  clearButton: {fileID: 353439717}
-  presetDropdown: {fileID: 153606544}
-  snapRotationToggle: {fileID: 2143972524}
-  keybindRecordButton: {fileID: 107967523}
-  uiRoot: {fileID: 1121874711}
-  presetKeybindsToggle: {fileID: 1214861155}
-  presetKeybindsPanel: {fileID: 929312800}
-  presetKeybindButtons:
-  - {fileID: 1866412030}
-  - {fileID: 1421287038}
-  - {fileID: 699367477}
-  - {fileID: 496245168}
-  - {fileID: 806152905}
-  presetHoldToggles:
-  - {fileID: 1934546132}
-  - {fileID: 1787240079}
-  - {fileID: 779817136}
-  - {fileID: 1887088553}
-  - {fileID: 2068854094}
-  clearAllPresetKeybindsButton: {fileID: 946685605}
-  tabLeftPosition: {x: -7, y: -0.35}
-  tabMiddlePosition: {x: -4, y: -0.2}
-  tabRightPosition: {x: -1, y: -0.2}
-  tabHighlightColor: {r: 1, g: 0.73067725, b: 0.6, a: 1}
-  tabNormalColor: {r: 1, g: 1, b: 1, a: 1}
-  tabHighlightScale: 0.025
-  tabNormalScale: 0.02
+  keybind: []
   uiVisible: 1
-  tabLerpSpeed: 12
+  uiContainer: {fileID: 1121874711}
+  statusText: {fileID: 0}
+  importButton: {fileID: 0}
+  exportButton: {fileID: 0}
+  resetButton: {fileID: 0}
+  copyButton: {fileID: 0}
+  pasteButton: {fileID: 0}
+  crosshairCodeInput: {fileID: 0}
+  presetDropdown: {fileID: 0}
+  snapToggle: {fileID: 2143972524}
+  crosshairThicknessSlider: {fileID: 0}
+  crosshairGapSlider: {fileID: 0}
+  crosshairLengthSlider: {fileID: 0}
+  outlineThicknessSlider: {fileID: 0}
+  dotSizeSlider: {fileID: 0}
+  dotOutlineThicknessSlider: {fileID: 0}
+  frameThicknessSlider: {fileID: 1325881273}
+  frameSizeSlider: {fileID: 0}
+  frameOutlineThicknessSlider: {fileID: 0}
+  hairsThicknessSlider: {fileID: 0}
+  hairsLengthSlider: {fileID: 0}
+  hairsOutlineThicknessSlider: {fileID: 0}
+  movementErrorAmountSlider: {fileID: 0}
+  movementErrorDecaySlider: {fileID: 0}
+  firingErrorAmountSlider: {fileID: 0}
+  firingErrorDecaySlider: {fileID: 0}
+  frameRotationSlider: {fileID: 2012511753}
+  hairsRotationSlider: {fileID: 7244468}
+  dotRotationSlider: {fileID: 118911920}
+  enableCrosshairToggle: {fileID: 0}
+  enableOutlineToggle: {fileID: 0}
+  enableDotToggle: {fileID: 0}
+  dotOutlineToggle: {fileID: 0}
+  enableFrameToggle: {fileID: 0}
+  frameOutlineToggle: {fileID: 0}
+  enableHairsToggle: {fileID: 0}
+  hairsOutlineToggle: {fileID: 0}
+  enableMovementErrorToggle: {fileID: 0}
+  enableFiringErrorToggle: {fileID: 0}
+  crosshairColorButton: {fileID: 0}
+  outlineColorButton: {fileID: 0}
+  dotColorButton: {fileID: 0}
+  dotOutlineColorButton: {fileID: 0}
+  frameColorButton: {fileID: 0}
+  frameOutlineColorButton: {fileID: 0}
+  hairsColorButton: {fileID: 0}
+  hairsOutlineColorButton: {fileID: 0}
+  keybindButton: {fileID: 0}
+  keybindText: {fileID: 0}
+  keybindPopup: {fileID: 0}
+  clearKeybindButton: {fileID: 0}
+  confirmKeybindButton: {fileID: 0}
+  cancelKeybindButton: {fileID: 0}
+  colorPickerContainer: {fileID: 0}
+  hueSlider: {fileID: 0}
+  satSlider: {fileID: 0}
+  valSlider: {fileID: 0}
+  alphaSlider: {fileID: 0}
+  colorPreview: {fileID: 0}
+  colorConfirmButton: {fileID: 0}
+  colorCancelButton: {fileID: 0}
+  hexInput: {fileID: 0}
 --- !u!222 &147411965
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -7673,7 +7661,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &682173588
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -7761,7 +7749,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &688802753
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -9106,7 +9094,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &888714077
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -11646,7 +11634,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &1138307594
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -13896,7 +13884,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &1332350293
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -15818,7 +15806,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &1505365676
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -16107,7 +16095,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &1516866967
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -17769,7 +17757,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &1698889247
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -18680,7 +18668,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!212 &1795706063
 SpriteRenderer:
   m_ObjectHideFlags: 0
