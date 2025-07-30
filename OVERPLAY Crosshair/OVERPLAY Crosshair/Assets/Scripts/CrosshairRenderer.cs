@@ -163,6 +163,19 @@ public class CrosshairRenderer : Graphic
     public float tabHighlightScale = 0.023f; // 15% larger than normal
     public float tabNormalScale = 0.02f;
 
+    [Header("Runtime Texture Generation")]
+    private Texture2D frameSaturationTexture;
+    private Texture2D hairSaturationTexture;
+    private Texture2D dotSaturationTexture;
+    
+    // Store original sprite properties to maintain size
+    private Vector2 originalFrameSatSize;
+    private Vector2 originalHairSatSize;
+    private Vector2 originalDotSatSize;
+    private float originalFrameSatPPU;
+    private float originalHairSatPPU;
+    private float originalDotSatPPU;
+
     private enum SpecialKey
     {
         None,
@@ -540,6 +553,144 @@ public class CrosshairRenderer : Graphic
         ApplyTabButtonAnimStateInstant(frameTabAnim);
         ApplyTabButtonAnimStateInstant(hairTabAnim);
         ApplyTabButtonAnimStateInstant(dotTabAnim);
+
+        // Initialize saturation gradient textures - first store original sizes
+        StoreOriginalSaturationSizes();
+        UpdateSaturationReferenceColor(frameSaturationRefRenderer, frameHue);
+        UpdateSaturationReferenceColor(hairSaturationRefRenderer, hairHue);
+        UpdateSaturationReferenceColor(dotSaturationRefRenderer, dotHue);
+    }
+
+    private void StoreOriginalSaturationSizes()
+    {
+        // Use the actual saturation texture size (960x150) as our reference
+        Vector2 defaultSize = new Vector2(960, 150);
+        float defaultPPU = 100f;
+        
+        // Store frame saturation original properties
+        if (frameSaturationRefRenderer != null && frameSaturationRefRenderer.sprite != null)
+        {
+            var sprite = frameSaturationRefRenderer.sprite;
+            originalFrameSatSize = sprite.rect.size;
+            originalFrameSatPPU = sprite.pixelsPerUnit;
+        }
+        else
+        {
+            originalFrameSatSize = defaultSize;
+            originalFrameSatPPU = defaultPPU;
+        }
+
+        // Store hair saturation original properties
+        if (hairSaturationRefRenderer != null && hairSaturationRefRenderer.sprite != null)
+        {
+            var sprite = hairSaturationRefRenderer.sprite;
+            originalHairSatSize = sprite.rect.size;
+            originalHairSatPPU = sprite.pixelsPerUnit;
+        }
+        else
+        {
+            originalHairSatSize = defaultSize;
+            originalHairSatPPU = defaultPPU;
+        }
+
+        // Store dot saturation original properties
+        if (dotSaturationRefRenderer != null && dotSaturationRefRenderer.sprite != null)
+        {
+            var sprite = dotSaturationRefRenderer.sprite;
+            originalDotSatSize = sprite.rect.size;
+            originalDotSatPPU = sprite.pixelsPerUnit;
+        }
+        else
+        {
+            originalDotSatSize = defaultSize;
+            originalDotSatPPU = defaultPPU;
+        }
+    }
+
+    private Texture2D GenerateSaturationGradient(float hue, Vector2 size)
+    {
+        int width = Mathf.RoundToInt(size.x);
+        int height = Mathf.RoundToInt(size.y);
+        
+        // Ensure minimum size to prevent errors
+        width = Mathf.Max(width, 32);
+        height = Mathf.Max(height, 16);
+        
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        Color[] colors = new Color[width * height];
+        
+        for (int x = 0; x < width; x++)
+        {
+            // Calculate saturation from 0 (left/grey) to 1 (right/fully saturated)
+            float saturation = (float)x / (width - 1);
+            
+            // Convert HSV to RGB with fixed Value=1 (full brightness)
+            Color pixelColor = Color.HSVToRGB(hue, saturation, 1f);
+            
+            // Fill the entire column with this color
+            for (int y = 0; y < height; y++)
+            {
+                colors[y * width + x] = pixelColor;
+            }
+        }
+        
+        texture.SetPixels(colors);
+        texture.Apply();
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+        
+        return texture;
+    }
+
+    private void UpdateSaturationTexture(SpriteRenderer renderer, float hue, ref Texture2D cachedTexture)
+    {
+        if (renderer == null) return;
+        
+        // Get the appropriate original size and pixels per unit
+        Vector2 originalSize;
+        float originalPPU;
+        
+        if (renderer == frameSaturationRefRenderer)
+        {
+            originalSize = originalFrameSatSize;
+            originalPPU = originalFrameSatPPU;
+        }
+        else if (renderer == hairSaturationRefRenderer)
+        {
+            originalSize = originalHairSatSize;
+            originalPPU = originalHairSatPPU;
+        }
+        else if (renderer == dotSaturationRefRenderer)
+        {
+            originalSize = originalDotSatSize;
+            originalPPU = originalDotSatPPU;
+        }
+        else
+        {
+            originalSize = new Vector2(256, 32);
+            originalPPU = 100f;
+        }
+        
+        // Destroy old texture to prevent memory leaks
+        if (cachedTexture != null)
+        {
+            DestroyImmediate(cachedTexture);
+        }
+        
+        // Generate new gradient texture with current hue and original size
+        cachedTexture = GenerateSaturationGradient(hue, originalSize);
+        
+        // Create sprite from texture with original pixels per unit
+        Sprite newSprite = Sprite.Create(
+            cachedTexture,
+            new Rect(0, 0, originalSize.x, originalSize.y),
+            new Vector2(0.5f, 0.5f),
+            originalPPU
+        );
+        
+        // Apply the new sprite
+        renderer.sprite = newSprite;
+        renderer.color = Color.white; // Reset color to white since texture has the colors
     }
 
     private void ApplyTabButtonAnimStateInstant(TabButtonAnimState anim)
@@ -909,6 +1060,11 @@ private void OnDestroy()
 {
     // Clean up event listener
     UnityEngine.Application.focusChanged -= OnApplicationFocus;
+    
+    // Clean up generated textures
+    if (frameSaturationTexture != null) DestroyImmediate(frameSaturationTexture);
+    if (hairSaturationTexture != null) DestroyImmediate(hairSaturationTexture);
+    if (dotSaturationTexture != null) DestroyImmediate(dotSaturationTexture);
 }
 
     // FIXED: Improved preset switching to prevent feedback loops
@@ -1229,9 +1385,6 @@ private void OnDestroy()
     {
         if (refObj == null || refRenderer == null) return;
         
-        // Only set alpha to 1, keep RGB as is
-        var c = refRenderer.color;
-        
         // Apply color filter only to saturation references
         if (type == RefType.FrameSaturation || type == RefType.HairSaturation || type == RefType.DotSaturation)
         {
@@ -1250,24 +1403,24 @@ private void OnDestroy()
                     break;
             }
             
-            // Convert the current color to HSV
-            Color.RGBToHSV(c, out float h, out float s, out float v);
-            
-            // If the color is saturated (not grey), apply the current hue
-            if (s > 0.1f) // Threshold to detect if it's not grey
+            // Generate new saturation gradient texture with current hue
+            if (type == RefType.FrameSaturation)
             {
-                Color newColor = Color.HSVToRGB(currentHue, s, v);
-                refRenderer.color = new Color(newColor.r, newColor.g, newColor.b, 1f);
+                UpdateSaturationTexture(refRenderer, currentHue, ref frameSaturationTexture);
+            }
+            else if (type == RefType.HairSaturation)
+            {
+                UpdateSaturationTexture(refRenderer, currentHue, ref hairSaturationTexture);
             }
             else
             {
-                // Keep grey colors unchanged
-                refRenderer.color = new Color(c.r, c.g, c.b, 1f);
+                UpdateSaturationTexture(refRenderer, currentHue, ref dotSaturationTexture);
             }
         }
         else
         {
             // For value references, keep original behavior
+            var c = refRenderer.color;
             refRenderer.color = new Color(c.r, c.g, c.b, 1f);
         }
         
@@ -2150,15 +2303,18 @@ catch (System.Exception e)
     {
         if (renderer == null) return;
         
-        // Get the current color and convert to HSV
-        Color currentColor = renderer.color;
-        Color.RGBToHSV(currentColor, out float h, out float s, out float v);
-        
-        // If the color has saturation (not grey), apply the new hue
-        if (s > 0.1f)
+        // Determine which cached texture to update based on the renderer
+        if (renderer == frameSaturationRefRenderer)
         {
-            Color newColor = Color.HSVToRGB(hue, s, v);
-            renderer.color = new Color(newColor.r, newColor.g, newColor.b, currentColor.a);
+            UpdateSaturationTexture(renderer, hue, ref frameSaturationTexture);
+        }
+        else if (renderer == hairSaturationRefRenderer)
+        {
+            UpdateSaturationTexture(renderer, hue, ref hairSaturationTexture);
+        }
+        else if (renderer == dotSaturationRefRenderer)
+        {
+            UpdateSaturationTexture(renderer, hue, ref dotSaturationTexture);
         }
     }
 
