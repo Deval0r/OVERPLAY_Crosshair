@@ -224,6 +224,7 @@ public class CrosshairRenderer : Graphic
     private string[] presets = new string[PRESET_COUNT];
     private int currentPresetIndex = 0;
     private bool isLoadingPreset = false; // ADDED: Prevents UI feedback loops
+    private bool isUpdatingUI = false; // ADDED: Additional protection for UI updates
 
     // --- Preset Keybind System ---
     private List<KeybindEntry>[] presetKeybinds = new List<KeybindEntry>[PRESET_COUNT];
@@ -344,19 +345,26 @@ public class CrosshairRenderer : Graphic
             frameFilled = val; SetVerticesDirty(); 
         });
         if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { 
-            if (isLoadingPreset) return;
+            if (isLoadingPreset || isUpdatingUI) return;
             frameOpacity = val; SetVerticesDirty(); 
         });
         if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { 
-            if (isLoadingPreset) return;
+            if (isLoadingPreset || isUpdatingUI) return;
             frameScale = val; SetVerticesDirty(); 
         });
         if (frameRotationSlider) frameRotationSlider.onValueChanged.AddListener(val => {
             if (isLoadingPreset) return;
-            float value = frameRotationSlider.value;
-            if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
+            float value = val;
+            if (SnapEnabled) 
+            {
+                value = Mathf.Round(value / 45f) * 45f;
+                // Only update slider if the snapped value is different
+                if (Mathf.Abs(frameRotationSlider.value - value) > 0.01f)
+                {
+                    frameRotationSlider.SetValueWithoutNotify(value);
+                }
+            }
             frameRotation = value;
-            if (SnapEnabled) frameRotationSlider.value = value;
             SetVerticesDirty();
         });
         if (frameThicknessSlider) frameThicknessSlider.onValueChanged.AddListener(val => { 
@@ -411,10 +419,17 @@ public class CrosshairRenderer : Graphic
         });
         if (hairsRotationSlider) hairsRotationSlider.onValueChanged.AddListener(val => {
             if (isLoadingPreset) return;
-            float value = hairsRotationSlider.value;
-            if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
+            float value = val;
+            if (SnapEnabled) 
+            {
+                value = Mathf.Round(value / 45f) * 45f;
+                // Only update slider if the snapped value is different
+                if (Mathf.Abs(hairsRotationSlider.value - value) > 0.01f)
+                {
+                    hairsRotationSlider.SetValueWithoutNotify(value);
+                }
+            }
             hairsRotation = value;
-            if (SnapEnabled) hairsRotationSlider.value = value;
             SetVerticesDirty();
         });
         if (hairColorSlider) {
@@ -497,10 +512,17 @@ public class CrosshairRenderer : Graphic
         });
         if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => {
             if (isLoadingPreset) return;
-            float value = dotRotationSlider.value;
-            if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
+            float value = val;
+            if (SnapEnabled) 
+            {
+                value = Mathf.Round(value / 45f) * 45f;
+                // Only update slider if the snapped value is different
+                if (Mathf.Abs(dotRotationSlider.value - value) > 0.01f)
+                {
+                    dotRotationSlider.SetValueWithoutNotify(value);
+                }
+            }
             dotRotation = value;
-            if (SnapEnabled) dotRotationSlider.value = value;
             SetVerticesDirty();
         });
 
@@ -925,19 +947,19 @@ public class CrosshairRenderer : Graphic
             if (frameRotationSlider)
             {
                 float snapped = Mathf.Round(frameRotationSlider.value / 45f) * 45f;
-                frameRotationSlider.value = snapped;
+                frameRotationSlider.SetValueWithoutNotify(snapped);
                 frameRotation = snapped;
             }
             if (hairsRotationSlider)
             {
                 float snapped = Mathf.Round(hairsRotationSlider.value / 45f) * 45f;
-                hairsRotationSlider.value = snapped;
+                hairsRotationSlider.SetValueWithoutNotify(snapped);
                 hairsRotation = snapped;
             }
             if (dotRotationSlider)
             {
                 float snapped = Mathf.Round(dotRotationSlider.value / 45f) * 45f;
-                dotRotationSlider.value = snapped;
+                dotRotationSlider.SetValueWithoutNotify(snapped);
                 dotRotation = snapped;
             }
             SetVerticesDirty();
@@ -1625,7 +1647,7 @@ private void OnDestroy()
                         hairSaturation = ParseF(parts[13]);
                         hairValue = ParseF(parts[14]);
                         if (hairsExtendPastFrameToggle != null)
-                            hairsExtendPastFrameToggle.isOn = parts[15] == "1";
+                            hairsExtendPastFrameToggle.SetIsOnWithoutNotify(parts[15] == "1");
                     }
                     break;
                 case "D":
@@ -1653,38 +1675,50 @@ private void OnDestroy()
 
     private void UpdateUIFromValues()
     {
-        // Update UI sliders and dropdowns to match current values
-        if (frameShapeDropdown) frameShapeDropdown.value = (int)frameShape;
-        if (frameFilledToggle) frameFilledToggle.isOn = frameFilled;
-        if (frameOpacitySlider) frameOpacitySlider.value = frameOpacity;
-        if (frameScaleSlider) frameScaleSlider.value = frameScale;
-        if (frameRotationSlider) frameRotationSlider.value = frameRotation;
-        if (frameThicknessSlider) frameThicknessSlider.value = frameThickness;
-        if (frameColorSlider) frameColorSlider.value = frameHue;
-        if (frameSaturationSlider) frameSaturationSlider.value = frameSaturation;
-        if (frameValueSlider) frameValueSlider.value = frameValue;
+        // Prevent recursive updates and feedback loops
+        if (isUpdatingUI || isLoadingPreset) return;
         
-        if (hairStyleDropdown) hairStyleDropdown.value = (int)hairStyle;
-        if (hairCountSlider) hairCountSlider.value = hairCount;
-        if (customAngleSlider) customAngleSlider.value = customAngle;
-        if (hairThicknessSlider) hairThicknessSlider.value = hairThickness;
-        if (hairLengthSlider) hairLengthSlider.value = hairLength;
-        if (hairsRotationSlider) hairsRotationSlider.value = hairsRotation;
-        if (hairColorSlider) hairColorSlider.value = hairHue;
-        if (hairSaturationSlider) hairSaturationSlider.value = hairSaturation;
-        if (hairValueSlider) hairValueSlider.value = hairValue;
-        if (hairOpacitySlider) hairOpacitySlider.value = hairOpacity;
+        isUpdatingUI = true;
         
-        if (dotShapeDropdown) dotShapeDropdown.value = (int)dotShape;
-        if (dotFilledToggle) dotFilledToggle.isOn = dotFilled;
-        if (dotColorSlider) dotColorSlider.value = dotHue;
-        if (dotSaturationSlider) dotSaturationSlider.value = dotSaturation;
-        if (dotValueSlider) dotValueSlider.value = dotValue;
-        if (dotOpacitySlider) dotOpacitySlider.value = dotOpacity;
-        if (dotScaleSlider) dotScaleSlider.value = dotScale;
-        if (dotRotationSlider) dotRotationSlider.value = dotRotation;
-        
-        UpdateHairUI();
+        try
+        {
+            // Update UI sliders and dropdowns to match current values (without triggering callbacks)
+            if (frameShapeDropdown) frameShapeDropdown.SetValueWithoutNotify((int)frameShape);
+            if (frameFilledToggle) frameFilledToggle.SetIsOnWithoutNotify(frameFilled);
+            if (frameOpacitySlider) frameOpacitySlider.SetValueWithoutNotify(frameOpacity);
+            if (frameScaleSlider) frameScaleSlider.SetValueWithoutNotify(frameScale);
+            if (frameRotationSlider) frameRotationSlider.SetValueWithoutNotify(frameRotation);
+            if (frameThicknessSlider) frameThicknessSlider.SetValueWithoutNotify(frameThickness);
+            if (frameColorSlider) frameColorSlider.SetValueWithoutNotify(frameHue);
+            if (frameSaturationSlider) frameSaturationSlider.SetValueWithoutNotify(frameSaturation);
+            if (frameValueSlider) frameValueSlider.SetValueWithoutNotify(frameValue);
+            
+            if (hairStyleDropdown) hairStyleDropdown.SetValueWithoutNotify((int)hairStyle);
+            if (hairCountSlider) hairCountSlider.SetValueWithoutNotify(hairCount);
+            if (customAngleSlider) customAngleSlider.SetValueWithoutNotify(customAngle);
+            if (hairThicknessSlider) hairThicknessSlider.SetValueWithoutNotify(hairThickness);
+            if (hairLengthSlider) hairLengthSlider.SetValueWithoutNotify(hairLength);
+            if (hairsRotationSlider) hairsRotationSlider.SetValueWithoutNotify(hairsRotation);
+            if (hairColorSlider) hairColorSlider.SetValueWithoutNotify(hairHue);
+            if (hairSaturationSlider) hairSaturationSlider.SetValueWithoutNotify(hairSaturation);
+            if (hairValueSlider) hairValueSlider.SetValueWithoutNotify(hairValue);
+            if (hairOpacitySlider) hairOpacitySlider.SetValueWithoutNotify(hairOpacity);
+            
+            if (dotShapeDropdown) dotShapeDropdown.SetValueWithoutNotify((int)dotShape);
+            if (dotFilledToggle) dotFilledToggle.SetIsOnWithoutNotify(dotFilled);
+            if (dotColorSlider) dotColorSlider.SetValueWithoutNotify(dotHue);
+            if (dotSaturationSlider) dotSaturationSlider.SetValueWithoutNotify(dotSaturation);
+            if (dotValueSlider) dotValueSlider.SetValueWithoutNotify(dotValue);
+            if (dotOpacitySlider) dotOpacitySlider.SetValueWithoutNotify(dotOpacity);
+            if (dotScaleSlider) dotScaleSlider.SetValueWithoutNotify(dotScale);
+            if (dotRotationSlider) dotRotationSlider.SetValueWithoutNotify(dotRotation);
+            
+            UpdateHairUI();
+        }
+        finally
+        {
+            isUpdatingUI = false;
+        }
     }
 
     // --- Preset Keybind System Methods ---
