@@ -225,6 +225,8 @@ public class CrosshairRenderer : Graphic
     private int currentPresetIndex = 0;
     private bool isLoadingPreset = false; // ADDED: Prevents UI feedback loops
     private bool isUpdatingUI = false; // ADDED: Additional protection for UI updates
+    private bool isSavingPreset = false; // ADDED: Prevents concurrent saves
+    private float lastPresetSaveTime = 0f; // ADDED: Debounce saves
 
     // --- Preset Keybind System ---
     private List<KeybindEntry>[] presetKeybinds = new List<KeybindEntry>[PRESET_COUNT];
@@ -1006,39 +1008,93 @@ private void OnDestroy()
     if (dotSaturationTexture != null) DestroyImmediate(dotSaturationTexture);
 }
 
-    // FIXED: Improved preset switching to prevent feedback loops
+    // FIXED: Improved preset switching to prevent corruption and race conditions
     private void OnPresetChanged(int newIndex)
     {
-        if (isLoadingPreset) return;
+        if (isLoadingPreset || isSavingPreset) return;
         
-        // Autosave current preset before switching (dropdown only)
-        presets[currentPresetIndex] = GenerateCrosshairCode();
-        SavePresetToStorage(currentPresetIndex);
+        Debug.Log($"OnPresetChanged called: {currentPresetIndex} → {newIndex}");
+        
+        // Only save if we're actually changing presets and enough time has passed
+        if (newIndex != currentPresetIndex && (Time.unscaledTime - lastPresetSaveTime) > 0.1f)
+        {
+            // Save current preset using internal state, not UI state
+            SaveCurrentPresetSafely();
+        }
+        
         currentPresetIndex = newIndex;
         LoadCrosshairFromCode(presets[currentPresetIndex]);
-        Debug.Log($"Switched to Preset {newIndex + 1}");
+        Debug.Log($"Manual switch to Preset {newIndex + 1}");
+    }
+    
+    private void SaveCurrentPresetSafely()
+    {
+        if (isSavingPreset) return;
+        
+        isSavingPreset = true;
+        lastPresetSaveTime = Time.unscaledTime;
+        
+        try
+        {
+            // Generate code from internal state, not UI state
+            presets[currentPresetIndex] = GenerateCrosshairCodeFromState();
+            SavePresetToStorage(currentPresetIndex);
+            Debug.Log($"Safely saved preset {currentPresetIndex + 1}");
+        }
+        finally
+        {
+            isSavingPreset = false;
+        }
     }
 
     private void SwitchToPreset(int presetIndex)
     {
         if (presetIndex >= 0 && presetIndex < PRESET_COUNT)
         {
-            // Prevent feedback loops during preset loading
+            // Prevent feedback loops and race conditions
+            if (isLoadingPreset || isSavingPreset) return;
+            
             isLoadingPreset = true;
             
-            currentPresetIndex = presetIndex;
-            if (presetDropdown != null)
+            try
             {
-                // Temporarily remove listener to prevent autosave
-                presetDropdown.onValueChanged.RemoveListener(OnPresetChanged);
-                presetDropdown.value = currentPresetIndex;
-                // Re-add listener
-                presetDropdown.onValueChanged.AddListener(OnPresetChanged);
+                bool switchingToSamePreset = (presetIndex == currentPresetIndex);
+                
+                if (switchingToSamePreset)
+                {
+                    // Switching to SAME preset = Save current edits, then reload
+                    Debug.Log($"Keybind refresh: Preset {presetIndex + 1} (saving current edits)");
+                    SaveCurrentPresetSafely();
+                }
+                else
+                {
+                    // Switching to DIFFERENT preset = Discard edits, clean switch
+                    Debug.Log($"Keybind switch: {currentPresetIndex + 1} → {presetIndex + 1} (discarding unsaved changes)");
+                }
+                
+                currentPresetIndex = presetIndex;
+                
+                // Update dropdown without triggering events
+                if (presetDropdown != null)
+                {
+                    presetDropdown.SetValueWithoutNotify(currentPresetIndex);
+                }
+                
+                LoadCrosshairFromCode(presets[currentPresetIndex]);
+                
+                if (switchingToSamePreset)
+                {
+                    Debug.Log($"Preset {presetIndex + 1} refreshed with saved changes");
+                }
+                else
+                {
+                    Debug.Log($"Switched to Preset {presetIndex + 1} (unsaved changes discarded)");
+                }
             }
-            LoadCrosshairFromCode(presets[currentPresetIndex]);
-            
-            isLoadingPreset = false;
-            Debug.Log($"Switched to Preset {presetIndex + 1} via keybind");
+            finally
+            {
+                isLoadingPreset = false;
+            }
         }
     }
 
@@ -1493,8 +1549,7 @@ private void OnDestroy()
     private void OnApplicationQuit()
     {
         // Save current crosshair to active preset before quitting
-        presets[currentPresetIndex] = GenerateCrosshairCode();
-        SavePresetToStorage(currentPresetIndex);
+        SaveCurrentPresetSafely();
         
         // Save all presets to ensure nothing is lost
         for (int i = 0; i < PRESET_COUNT; i++)
@@ -1563,7 +1618,15 @@ private void OnDestroy()
 
     private string GenerateCrosshairCode()
     {
-        // Frame section
+        return GenerateCrosshairCodeFromState();
+    }
+    
+    private string GenerateCrosshairCodeFromState()
+    {
+        // Generate code from internal state variables, not UI elements
+        // This prevents corruption when UI is in transition
+        
+        // Frame section - use internal variables only
         string frameSection = string.Join(",",
             "F",
             FrameShapeToCode(frameShape),
@@ -1575,7 +1638,9 @@ private void OnDestroy()
             frameThickness.ToString("F3"),
             frameHue.ToString("F3"), frameSaturation.ToString("F3"), frameValue.ToString("F3")
         );
-        // Hairs section
+        
+        // Hairs section - use internal variables only
+        bool hairsExtendPastFrame = hairsExtendPastFrameToggle != null ? hairsExtendPastFrameToggle.isOn : false;
         string hairsSection = string.Join(",",
             "H",
             HairStyleToCode(hairStyle),
@@ -1587,9 +1652,10 @@ private void OnDestroy()
             hairOpacity.ToString("F3"),
             hairsRotation.ToString("F3"),
             hairHue.ToString("F3"), hairSaturation.ToString("F3"), hairValue.ToString("F3"),
-            (hairsExtendPastFrameToggle != null && hairsExtendPastFrameToggle.isOn) ? "1" : "0"
+            hairsExtendPastFrame ? "1" : "0"
         );
-        // Dot section
+        
+        // Dot section - use internal variables only
         string dotSection = string.Join(",",
             "D",
             FrameShapeToCode(dotShape),
