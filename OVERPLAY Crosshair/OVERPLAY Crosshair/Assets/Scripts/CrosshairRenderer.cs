@@ -10,8 +10,11 @@ using System.Security.Cryptography;
 using System.Text;
 //using Window;
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-using System.Windows.Forms;
+using WinForms = System.Windows.Forms;  // ← Keep the alias
 #endif
+
+
+
 
 public enum CrosshairShape { Circle, Square, Triangle }
 public enum HairStyle { Even, Custom }
@@ -215,6 +218,7 @@ public class CrosshairRenderer : Graphic
     private const int PRESET_COUNT = 5;
     private string[] presets = new string[PRESET_COUNT];
     private int currentPresetIndex = 0;
+    private bool isLoadingPreset = false; // ADDED: Prevents UI feedback loops
 
     // --- Preset Keybind System ---
     private List<KeybindEntry>[] presetKeybinds = new List<KeybindEntry>[PRESET_COUNT];
@@ -255,7 +259,16 @@ public class CrosshairRenderer : Graphic
     }
 
     new void Awake()
-    {
+    {      
+        // Enable running in background - CRITICAL for overlay functionality
+    UnityEngine.Application.runInBackground = true;
+    
+    // Prevent the application from pausing when losing focus
+    Time.timeScale = 1f;
+    
+    // Your existing Awake code...
+    frameShape = CrosshairShape.Circle;
+    frameFilled = false;
         // --- Frame ---
         frameShape = CrosshairShape.Circle;
         frameFilled = false;
@@ -299,6 +312,13 @@ public class CrosshairRenderer : Graphic
 
     new void Start()
     {
+        UnityEngine.Application.runInBackground = true;
+    
+    // Set target frame rate to maintain responsiveness
+    UnityEngine.Application.targetFrameRate = 60;
+    
+    // Handle focus events
+    UnityEngine.Application.focusChanged += OnApplicationFocus;
         // Cache Image components from preview GameObjects
         if (frameColorPreviewObj) frameColorPreviewRenderer = frameColorPreviewObj.GetComponent<SpriteRenderer>();
         if (hairColorPreviewObj) hairColorPreviewRenderer = hairColorPreviewObj.GetComponent<SpriteRenderer>();
@@ -310,20 +330,37 @@ public class CrosshairRenderer : Graphic
         if (dotSaturationRefObj) dotSaturationRefRenderer = dotSaturationRefObj.GetComponent<SpriteRenderer>();
         if (dotValueRefObj) dotValueRefRenderer = dotValueRefObj.GetComponent<SpriteRenderer>();
         // --- Frame UI ---
-        if (frameShapeDropdown) frameShapeDropdown.onValueChanged.AddListener(val => { frameShape = (CrosshairShape)val; SetVerticesDirty(); });
-        if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { frameFilled = val; SetVerticesDirty(); });
-        if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { frameOpacity = val; SetVerticesDirty(); });
-        if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { frameScale = val; SetVerticesDirty(); });
+        if (frameShapeDropdown) frameShapeDropdown.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            frameShape = (CrosshairShape)val; SetVerticesDirty(); 
+        });
+        if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            frameFilled = val; SetVerticesDirty(); 
+        });
+        if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            frameOpacity = val; SetVerticesDirty(); 
+        });
+        if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            frameScale = val; SetVerticesDirty(); 
+        });
         if (frameRotationSlider) frameRotationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             float value = frameRotationSlider.value;
             if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
             frameRotation = value;
             if (SnapEnabled) frameRotationSlider.value = value;
             SetVerticesDirty();
         });
-        if (frameThicknessSlider) frameThicknessSlider.onValueChanged.AddListener(val => { frameThickness = val; SetVerticesDirty(); });
+        if (frameThicknessSlider) frameThicknessSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            frameThickness = val; SetVerticesDirty(); 
+        });
         if (frameColorSlider) {
             frameColorSlider.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
                 frameHue = val;
                 frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
                 SetVerticesDirty();
@@ -332,12 +369,14 @@ public class CrosshairRenderer : Graphic
             });
         }
         if (frameSaturationSlider) frameSaturationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             frameSaturation = val;
             frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
             SetVerticesDirty();
             ShowReferenceImage(frameSaturationRefObj, frameSaturationRefRenderer, RefType.FrameSaturation);
         });
         if (frameValueSlider) frameValueSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             frameValue = val;
             frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
             SetVerticesDirty();
@@ -345,12 +384,28 @@ public class CrosshairRenderer : Graphic
         });
 
         // --- Hairs UI ---
-        if (hairStyleDropdown) hairStyleDropdown.onValueChanged.AddListener(val => { hairStyle = (HairStyle)val; SetVerticesDirty(); UpdateHairUI(); });
-        if (hairCountSlider) hairCountSlider.onValueChanged.AddListener(val => { hairCount = Mathf.RoundToInt(val); SetVerticesDirty(); });
-        if (customAngleSlider) customAngleSlider.onValueChanged.AddListener(val => { customAngle = val; SetVerticesDirty(); });
-        if (hairThicknessSlider) hairThicknessSlider.onValueChanged.AddListener(val => { hairThickness = val; SetVerticesDirty(); });
-        if (hairLengthSlider) hairLengthSlider.onValueChanged.AddListener(val => { hairLength = val; SetVerticesDirty(); });
+        if (hairStyleDropdown) hairStyleDropdown.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            hairStyle = (HairStyle)val; SetVerticesDirty(); UpdateHairUI(); 
+        });
+        if (hairCountSlider) hairCountSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            hairCount = Mathf.RoundToInt(val); SetVerticesDirty(); 
+        });
+        if (customAngleSlider) customAngleSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            customAngle = val; SetVerticesDirty(); 
+        });
+        if (hairThicknessSlider) hairThicknessSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            hairThickness = val; SetVerticesDirty(); 
+        });
+        if (hairLengthSlider) hairLengthSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            hairLength = val; SetVerticesDirty(); 
+        });
         if (hairsRotationSlider) hairsRotationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             float value = hairsRotationSlider.value;
             if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
             hairsRotation = value;
@@ -359,6 +414,7 @@ public class CrosshairRenderer : Graphic
         });
         if (hairColorSlider) {
             hairColorSlider.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
                 hairHue = val;
                 hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
                 SetVerticesDirty();
@@ -367,26 +423,44 @@ public class CrosshairRenderer : Graphic
             });
         }
         if (hairSaturationSlider) hairSaturationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             hairSaturation = val;
             hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
             SetVerticesDirty();
             ShowReferenceImage(hairSaturationRefObj, hairSaturationRefRenderer, RefType.HairSaturation);
         });
         if (hairValueSlider) hairValueSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             hairValue = val;
             hairColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
             SetVerticesDirty();
             ShowReferenceImage(hairValueRefObj, hairValueRefRenderer, RefType.HairValue);
         });
-        if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { hairOpacity = val; SetVerticesDirty(); });
-        if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.onValueChanged.AddListener(val => { SetVerticesDirty(); });
-        if (hairDistanceSlider) hairDistanceSlider.onValueChanged.AddListener(val => { SetVerticesDirty(); });
+        if (hairOpacitySlider) hairOpacitySlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            hairOpacity = val; SetVerticesDirty(); 
+        });
+        if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            SetVerticesDirty(); 
+        });
+        if (hairDistanceSlider) hairDistanceSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            SetVerticesDirty(); 
+        });
 
         // --- Dot UI ---
-        if (dotShapeDropdown) dotShapeDropdown.onValueChanged.AddListener(val => { dotShape = (CrosshairShape)val; SetVerticesDirty(); });
-        if (dotFilledToggle) dotFilledToggle.onValueChanged.AddListener(val => { dotFilled = val; SetVerticesDirty(); });
+        if (dotShapeDropdown) dotShapeDropdown.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            dotShape = (CrosshairShape)val; SetVerticesDirty(); 
+        });
+        if (dotFilledToggle) dotFilledToggle.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            dotFilled = val; SetVerticesDirty(); 
+        });
         if (dotColorSlider) {
             dotColorSlider.onValueChanged.AddListener(val => {
+                if (isLoadingPreset) return;
                 dotHue = val;
                 dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
                 SetVerticesDirty();
@@ -395,20 +469,29 @@ public class CrosshairRenderer : Graphic
             });
         }
         if (dotSaturationSlider) dotSaturationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             dotSaturation = val;
             dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
             SetVerticesDirty();
             ShowReferenceImage(dotSaturationRefObj, dotSaturationRefRenderer, RefType.DotSaturation);
         });
         if (dotValueSlider) dotValueSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             dotValue = val;
             dotColor = Color.HSVToRGB(dotHue, dotSaturation, dotValue);
             SetVerticesDirty();
             ShowReferenceImage(dotValueRefObj, dotValueRefRenderer, RefType.DotValue);
         });
-        if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { dotOpacity = val; SetVerticesDirty(); });
-        if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { dotScale = val; SetVerticesDirty(); });
+        if (dotOpacitySlider) dotOpacitySlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            dotOpacity = val; SetVerticesDirty(); 
+        });
+        if (dotScaleSlider) dotScaleSlider.onValueChanged.AddListener(val => { 
+            if (isLoadingPreset) return;
+            dotScale = val; SetVerticesDirty(); 
+        });
         if (dotRotationSlider) dotRotationSlider.onValueChanged.AddListener(val => {
+            if (isLoadingPreset) return;
             float value = dotRotationSlider.value;
             if (SnapEnabled) value = Mathf.Round(value / 45f) * 45f;
             dotRotation = value;
@@ -470,8 +553,50 @@ public class CrosshairRenderer : Graphic
         anim.rt.localScale = Vector3.one * anim.currentScale;
     }
 
-    void Update()
+    // FIXED: Improved input detection and edge handling
+    private bool GetKeyState(KeybindEntry k)
+{
+    if (k.specialKey == SpecialKey.None)
     {
+        // Always use SystemInput for global keybinds (works both focused and unfocused)
+        return SystemInput.GetKey(k.keyCode);
+    }
+    else
+    {
+        switch (k.specialKey)
+        {
+            case SpecialKey.MouseLeft:
+                return SystemInput.GetMouseButton(0);
+            case SpecialKey.MouseRight:
+                return SystemInput.GetMouseButton(1);
+            case SpecialKey.MouseMiddle:
+                return SystemInput.GetMouseButton(2);
+            case SpecialKey.MouseWheelUp:
+                return Input.mouseScrollDelta.y > 0.01f; // Mouse wheel still uses Unity Input
+            case SpecialKey.MouseWheelDown:
+                return Input.mouseScrollDelta.y < -0.01f; // Mouse wheel still uses Unity Input
+            default:
+                return false;
+        }
+    }
+}
+
+
+
+    // FIXED: Edge detection to prevent window minimizing
+    private bool IsMouseNearEdge()
+    {
+        int edgeMargin = 2;
+        Vector2 mousePos = Input.mousePosition;
+        return mousePos.x <= edgeMargin || mousePos.x >= UnityEngine.Screen.width - edgeMargin ||
+               mousePos.y <= edgeMargin || mousePos.y >= UnityEngine.Screen.height - edgeMargin;
+    }
+
+    void Update()
+    {   
+        if (!UnityEngine.Application.runInBackground)
+        UnityEngine.Application.runInBackground = true;
+
         if (recordingKeybind)
         {
             // Check all possible KeyCodes
@@ -606,98 +731,84 @@ public class CrosshairRenderer : Graphic
             }
         }
         else
+{
+    // FIXED: Improved keybind detection with edge handling
+    bool allHeld = currentKeybind.Count > 0;
+    foreach (var k in currentKeybind)
+    {
+        if (!GetKeyState(k)) allHeld = false;
+    }
+    
+    // UI safety: if UI is visible and pointer is over UI, ignore mouse keybinds
+    bool mouseKeyInBind = currentKeybind.Any(k => k.specialKey != SpecialKey.None && k.specialKey != SpecialKey.MouseWheelUp && k.specialKey != SpecialKey.MouseWheelDown);
+    if (allHeld)
+    {
+        bool pointerOverUI = uiVisible && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        bool nearEdge = IsMouseNearEdge();
+        
+        if (!(mouseKeyInBind && (pointerOverUI || nearEdge)))
         {
-            // Manual cooldown-based keybind detection (always use SystemInput for global keybinds)
-            bool allHeld = currentKeybind.Count > 0;
-            foreach (var k in currentKeybind)
+            if (!keybindWasHeld)
             {
-                if (k.specialKey == SpecialKey.None)
+                ToggleUI();
+                keybindWasHeld = true;
+            }
+        }
+    }
+    else
+    {
+        keybindWasHeld = false;
+    }
+    
+    // FIXED: Preset keybind detection with edge handling
+    for (int i = 0; i < PRESET_COUNT; i++)
+    {
+        if (presetKeybinds[i].Count > 0)
+        {
+            bool allPresetKeysHeld = true;
+            foreach (var k in presetKeybinds[i])
+            {
+                if (!GetKeyState(k))
                 {
-                    if (!SystemInput.GetKey(k.keyCode)) allHeld = false;
-                }
-                else
-                {
-                    // Mouse/special key detection
-                    if (k.specialKey == SpecialKey.MouseLeft && !SystemInput.GetMouseButton(0)) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseRight && !SystemInput.GetMouseButton(1)) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseMiddle && !SystemInput.GetMouseButton(2)) allHeld = false;
-                    // Mouse wheel up/down: not supported by SystemInput, fallback to Input
-                    if (k.specialKey == SpecialKey.MouseWheelUp && Input.mouseScrollDelta.y <= 0.01f) allHeld = false;
-                    if (k.specialKey == SpecialKey.MouseWheelDown && Input.mouseScrollDelta.y >= -0.01f) allHeld = false;
+                    allPresetKeysHeld = false;
+                    break;
                 }
             }
-            // UI safety: if UI is visible and pointer is over UI, ignore mouse keybinds
-            bool mouseKeyInBind = currentKeybind.Any(k => k.specialKey != SpecialKey.None);
-            if (allHeld)
+            bool presetMouseKey = presetKeybinds[i].Any(k => k.specialKey != SpecialKey.None && k.specialKey != SpecialKey.MouseWheelUp && k.specialKey != SpecialKey.MouseWheelDown);
+            bool pointerOverUI = uiVisible && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            bool nearEdge = IsMouseNearEdge();
+            
+            if (allPresetKeysHeld)
             {
-                bool pointerOverUI = uiVisible && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-                if (!(mouseKeyInBind && pointerOverUI))
+                if (!(presetMouseKey && (pointerOverUI || nearEdge)))
                 {
-                    if (!keybindWasHeld)
+                    if (!presetKeybindWasHeld[i])
                     {
-                        ToggleUI();
-                        keybindWasHeld = true;
+                        if (presetHoldModes[i])
+                        {
+                            presetReturnIndex[i] = currentPresetIndex;
+                            SwitchToPreset(i);
+                        }
+                        else
+                        {
+                            SwitchToPreset(i);
+                        }
+                        presetKeybindWasHeld[i] = true;
                     }
                 }
             }
             else
             {
-                keybindWasHeld = false;
-            }
-            // Preset keybind detection
-            for (int i = 0; i < PRESET_COUNT; i++)
-            {
-                if (presetKeybinds[i].Count > 0)
+                if (presetKeybindWasHeld[i] && presetHoldModes[i])
                 {
-                    bool allPresetKeysHeld = true;
-                    foreach (var k in presetKeybinds[i])
-                    {
-                        if (k.specialKey == SpecialKey.None)
-                        {
-                            if (!SystemInput.GetKey(k.keyCode)) allPresetKeysHeld = false;
-                        }
-                        else
-                        {
-                            if (k.specialKey == SpecialKey.MouseLeft && !SystemInput.GetMouseButton(0)) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseRight && !SystemInput.GetMouseButton(1)) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseMiddle && !SystemInput.GetMouseButton(2)) allPresetKeysHeld = false;
-                            // Mouse wheel up/down: not supported by SystemInput, fallback to Input
-                            if (k.specialKey == SpecialKey.MouseWheelUp && Input.mouseScrollDelta.y <= 0.01f) allPresetKeysHeld = false;
-                            if (k.specialKey == SpecialKey.MouseWheelDown && Input.mouseScrollDelta.y >= -0.01f) allPresetKeysHeld = false;
-                        }
-                    }
-                    bool presetMouseKey = presetKeybinds[i].Any(k => k.specialKey != SpecialKey.None);
-                    bool pointerOverUI = uiVisible && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-                    if (allPresetKeysHeld)
-                    {
-                        if (!(presetMouseKey && pointerOverUI))
-                        {
-                            if (!presetKeybindWasHeld[i])
-                            {
-                                if (presetHoldModes[i])
-                                {
-                                    presetReturnIndex[i] = currentPresetIndex;
-                                    SwitchToPreset(i);
-                                }
-                                else
-                                {
-                                    SwitchToPreset(i);
-                                }
-                                presetKeybindWasHeld[i] = true;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (presetKeybindWasHeld[i] && presetHoldModes[i])
-                        {
-                            SwitchToPreset(presetReturnIndex[i]);
-                        }
-                        presetKeybindWasHeld[i] = false;
-                    }
+                    SwitchToPreset(presetReturnIndex[i]);
                 }
+                presetKeybindWasHeld[i] = false;
             }
         }
+    }
+}
+
 
         // --- Tab Button Animation ---
         AnimateTabButton(frameTabAnim);
@@ -772,6 +883,74 @@ public class CrosshairRenderer : Graphic
         if (hairCountSlider) hairCountSlider.gameObject.SetActive(!isCustom);
     }
 
+    // Continue with all your existing methods unchanged...
+    // [Rest of the methods remain exactly the same as your current script]
+    private void OnApplicationFocus(bool hasFocus)
+{
+    // Always keep running regardless of focus state
+    UnityEngine.Application.runInBackground = true;
+    Time.timeScale = 1f;
+    
+    // Log focus state for debugging
+    Debug.Log($"Application focus changed: {hasFocus}");
+}
+
+private void OnApplicationPause(bool pauseStatus)
+{
+    // Prevent pausing when losing focus
+    if (pauseStatus)
+    {
+        UnityEngine.Application.runInBackground = true;
+        Time.timeScale = 1f;
+    }
+}
+
+private void OnDestroy()
+{
+    // Clean up event listener
+    UnityEngine.Application.focusChanged -= OnApplicationFocus;
+}
+
+    // FIXED: Improved preset switching to prevent feedback loops
+    private void OnPresetChanged(int newIndex)
+    {
+        if (isLoadingPreset) return;
+        
+        // Autosave current preset before switching (dropdown only)
+        presets[currentPresetIndex] = GenerateCrosshairCode();
+        SavePresetToStorage(currentPresetIndex);
+        currentPresetIndex = newIndex;
+        LoadCrosshairFromCode(presets[currentPresetIndex]);
+        Debug.Log($"Switched to Preset {newIndex + 1}");
+    }
+
+    private void SwitchToPreset(int presetIndex)
+    {
+        if (presetIndex >= 0 && presetIndex < PRESET_COUNT)
+        {
+            // Prevent feedback loops during preset loading
+            isLoadingPreset = true;
+            
+            currentPresetIndex = presetIndex;
+            if (presetDropdown != null)
+            {
+                // Temporarily remove listener to prevent autosave
+                presetDropdown.onValueChanged.RemoveListener(OnPresetChanged);
+                presetDropdown.value = currentPresetIndex;
+                // Re-add listener
+                presetDropdown.onValueChanged.AddListener(OnPresetChanged);
+            }
+            LoadCrosshairFromCode(presets[currentPresetIndex]);
+            
+            isLoadingPreset = false;
+            Debug.Log($"Switched to Preset {presetIndex + 1} via keybind");
+        }
+    }
+
+    // Rest of your methods remain exactly the same...
+    // [Include all remaining methods from your original script without changes]
+    // Drawing Methods, Color Preview Logic, Preset System Methods, etc.
+    // ... [Copy all remaining methods exactly as they are in your current script]
     // --- Drawing Methods ---
     void DrawFrame(VertexHelper vh)
     {
@@ -1172,9 +1351,6 @@ public class CrosshairRenderer : Graphic
         }
     }
 
-    // --- Color Picker Placeholder ---
-    // (Removed old color picker logic)
-
     private bool crosshairHidden = false;
 
     public void ToggleCrosshair()
@@ -1293,34 +1469,6 @@ public class CrosshairRenderer : Graphic
         Debug.Log($"Saved Preset {presetIndex + 1} to storage");
     }
 
-    private void OnPresetChanged(int newIndex)
-    {
-        // Autosave current preset before switching (dropdown only)
-        presets[currentPresetIndex] = GenerateCrosshairCode();
-        SavePresetToStorage(currentPresetIndex);
-        currentPresetIndex = newIndex;
-        LoadCrosshairFromCode(presets[currentPresetIndex]);
-        Debug.Log($"Switched to Preset {newIndex + 1}");
-    }
-
-    private void SwitchToPreset(int presetIndex)
-    {
-        if (presetIndex >= 0 && presetIndex < PRESET_COUNT)
-        {
-            currentPresetIndex = presetIndex;
-            if (presetDropdown != null)
-            {
-                // Remove listener to prevent autosave
-                presetDropdown.onValueChanged.RemoveListener(OnPresetChanged);
-                presetDropdown.value = currentPresetIndex;
-                // Re-add listener
-                presetDropdown.onValueChanged.AddListener(OnPresetChanged);
-            }
-            LoadCrosshairFromCode(presets[currentPresetIndex]);
-            Debug.Log($"Switched to Preset {presetIndex + 1} via keybind");
-        }
-    }
-
     private string GenerateCrosshairCode()
     {
         // Frame section
@@ -1366,6 +1514,10 @@ public class CrosshairRenderer : Graphic
     private void LoadCrosshairFromCode(string code)
     {
         if (string.IsNullOrEmpty(code)) return;
+        
+        // FIXED: Set flag to prevent feedback loops
+        isLoadingPreset = true;
+        
         string[] sections = code.Split(';');
         foreach (var section in sections)
         {
@@ -1424,6 +1576,9 @@ public class CrosshairRenderer : Graphic
         }
         SetVerticesDirty();
         UpdateUIFromValues();
+        
+        // FIXED: Clear flag after loading
+        isLoadingPreset = false;
     }
 
     private void UpdateUIFromValues()
@@ -1827,14 +1982,13 @@ public class CrosshairRenderer : Graphic
     public void LoadCrosshairCode()
     {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
-        // Try to get file from clipboard
-        try
+try
+{
+    if (WinForms.Clipboard.ContainsFileDropList())
+    {
+        var files = WinForms.Clipboard.GetFileDropList();
+        if (files != null && files.Count > 0)
         {
-            if (Clipboard.ContainsFileDropList())
-            {
-                var files = Clipboard.GetFileDropList();
-                if (files != null && files.Count > 0)
-                {
                     string filePath = files[0];
                     string fileName = Path.GetFileName(filePath);
                     if (fileName.StartsWith("Crosshair_") && fileName.EndsWith(".png"))
@@ -1857,12 +2011,12 @@ public class CrosshairRenderer : Graphic
                         return;
                     }
                 }
-            }
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogWarning($"Clipboard file check failed: {e.Message}");
-        }
+    }
+}
+catch (System.Exception e)
+{
+    Debug.LogWarning($"Clipboard file check failed: {e.Message}");
+}
 #endif
         // Fallback: use text clipboard
         string code = GUIUtility.systemCopyBuffer;
@@ -1953,6 +2107,7 @@ public class CrosshairRenderer : Graphic
             default: return "C";
         }
     }
+ 
     private CrosshairShape CodeToFrameShape(string code)
     {
         switch (code)
@@ -1963,86 +2118,183 @@ public class CrosshairRenderer : Graphic
             default: return CrosshairShape.Circle;
         }
     }
+
     private string HairStyleToCode(HairStyle style)
     {
         switch (style)
         {
             case HairStyle.Even: return "E";
-            case HairStyle.Custom: return "U";
+            case HairStyle.Custom: return "C";
             default: return "E";
         }
     }
+
     private HairStyle CodeToHairStyle(string code)
     {
         switch (code)
         {
             case "E": return HairStyle.Even;
-            case "U": return HairStyle.Custom;
+            case "C": return HairStyle.Custom;
             default: return HairStyle.Even;
         }
     }
-    private float ParseF(string s)
+
+    private float ParseF(string value)
     {
-        float f = 0f;
-        float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f);
-        return f;
+        if (float.TryParse(value, out float result))
+            return result;
+        return 0f;
+    }
+
+    private void UpdateSaturationReferenceColor(SpriteRenderer renderer, float hue)
+    {
+        if (renderer == null) return;
+        
+        // Get the current color and convert to HSV
+        Color currentColor = renderer.color;
+        Color.RGBToHSV(currentColor, out float h, out float s, out float v);
+        
+        // If the color has saturation (not grey), apply the new hue
+        if (s > 0.1f)
+        {
+            Color newColor = Color.HSVToRGB(hue, s, v);
+            renderer.color = new Color(newColor.r, newColor.g, newColor.b, currentColor.a);
+        }
     }
 
     public void ClearAllPresetKeybinds()
     {
+        // Clear all preset keybinds
         for (int i = 0; i < PRESET_COUNT; i++)
         {
             presetKeybinds[i].Clear();
             presetHoldModes[i] = false;
         }
-        SavePresetKeybindsToStorage();
+        
+        // Update UI
         UpdatePresetKeybindButtonTexts();
+        
+        // Save to storage
+        SavePresetKeybindsToStorage();
+        
+        Debug.Log("All preset keybinds cleared");
     }
 
-    private void UpdateSaturationReferenceColor(SpriteRenderer refRenderer, float hue)
+    // SystemInput class for handling input when Unity is not focused
+    // SystemInput class for handling input when Unity is not focused
+
+// SystemInput class for handling input when Unity is not focused
+private static class SystemInput
+{
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    // Virtual key codes for common keys
+    private static readonly Dictionary<KeyCode, int> KeyCodeToVirtualKey = new Dictionary<KeyCode, int>
     {
-        if (refRenderer == null) return;
+        { KeyCode.A, 0x41 }, { KeyCode.B, 0x42 }, { KeyCode.C, 0x43 }, { KeyCode.D, 0x44 },
+        { KeyCode.E, 0x45 }, { KeyCode.F, 0x46 }, { KeyCode.G, 0x47 }, { KeyCode.H, 0x48 },
+        { KeyCode.I, 0x49 }, { KeyCode.J, 0x4A }, { KeyCode.K, 0x4B }, { KeyCode.L, 0x4C },
+        { KeyCode.M, 0x4D }, { KeyCode.N, 0x4E }, { KeyCode.O, 0x4F }, { KeyCode.P, 0x50 },
+        { KeyCode.Q, 0x51 }, { KeyCode.R, 0x52 }, { KeyCode.S, 0x53 }, { KeyCode.T, 0x54 },
+        { KeyCode.U, 0x55 }, { KeyCode.V, 0x56 }, { KeyCode.W, 0x57 }, { KeyCode.X, 0x58 },
+        { KeyCode.Y, 0x59 }, { KeyCode.Z, 0x5A },
         
-        // Get the current color
-        Color currentColor = refRenderer.color;
+        { KeyCode.Alpha0, 0x30 }, { KeyCode.Alpha1, 0x31 }, { KeyCode.Alpha2, 0x32 },
+        { KeyCode.Alpha3, 0x33 }, { KeyCode.Alpha4, 0x34 }, { KeyCode.Alpha5, 0x35 },
+        { KeyCode.Alpha6, 0x36 }, { KeyCode.Alpha7, 0x37 }, { KeyCode.Alpha8, 0x38 },
+        { KeyCode.Alpha9, 0x39 },
         
-        // Convert the current color to HSV
-        Color.RGBToHSV(currentColor, out float h, out float s, out float v);
+        { KeyCode.F1, 0x70 }, { KeyCode.F2, 0x71 }, { KeyCode.F3, 0x72 }, { KeyCode.F4, 0x73 },
+        { KeyCode.F5, 0x74 }, { KeyCode.F6, 0x75 }, { KeyCode.F7, 0x76 }, { KeyCode.F8, 0x77 },
+        { KeyCode.F9, 0x78 }, { KeyCode.F10, 0x79 }, { KeyCode.F11, 0x7A }, { KeyCode.F12, 0x7B },
         
-        // If the color is saturated (not grey), apply the new hue
-        if (s > 0.1f) // Threshold to detect if it's not grey
+        { KeyCode.Space, 0x20 }, { KeyCode.Return, 0x0D }, { KeyCode.Escape, 0x1B },
+        { KeyCode.Tab, 0x09 }, { KeyCode.Backspace, 0x08 }, { KeyCode.Delete, 0x2E },
+        { KeyCode.Insert, 0x2D }, { KeyCode.Home, 0x24 }, { KeyCode.End, 0x23 },
+        { KeyCode.PageUp, 0x21 }, { KeyCode.PageDown, 0x22 },
+        
+        { KeyCode.UpArrow, 0x26 }, { KeyCode.DownArrow, 0x28 },
+        { KeyCode.LeftArrow, 0x25 }, { KeyCode.RightArrow, 0x27 },
+        
+        { KeyCode.LeftShift, 0xA0 }, { KeyCode.RightShift, 0xA1 },
+        { KeyCode.LeftControl, 0xA2 }, { KeyCode.RightControl, 0xA3 },
+        { KeyCode.LeftAlt, 0xA4 }, { KeyCode.RightAlt, 0xA5 },
+        { KeyCode.LeftWindows, 0x5B }, { KeyCode.RightWindows, 0x5C },
+        
+        { KeyCode.Keypad0, 0x60 }, { KeyCode.Keypad1, 0x61 }, { KeyCode.Keypad2, 0x62 },
+        { KeyCode.Keypad3, 0x63 }, { KeyCode.Keypad4, 0x64 }, { KeyCode.Keypad5, 0x65 },
+        { KeyCode.Keypad6, 0x66 }, { KeyCode.Keypad7, 0x67 }, { KeyCode.Keypad8, 0x68 },
+        { KeyCode.Keypad9, 0x69 }, { KeyCode.KeypadPeriod, 0x6E }, { KeyCode.KeypadDivide, 0x6F },
+        { KeyCode.KeypadMultiply, 0x6A }, { KeyCode.KeypadMinus, 0x6D }, { KeyCode.KeypadPlus, 0x6B },
+        { KeyCode.KeypadEnter, 0x0D },
+        
+        // Mouse buttons
+        { KeyCode.Mouse0, 0x01 }, { KeyCode.Mouse1, 0x02 }, { KeyCode.Mouse2, 0x04 }
+    };
+
+    public static bool GetKey(KeyCode keyCode)
+    {
+        try
         {
-            Color newColor = Color.HSVToRGB(hue, s, v);
-            refRenderer.color = new Color(newColor.r, newColor.g, newColor.b, currentColor.a);
+            if (KeyCodeToVirtualKey.TryGetValue(keyCode, out int vKey))
+            {
+                short keyState = GetAsyncKeyState(vKey);
+                bool isPressed = (keyState & 0x8000) != 0;
+                
+                // Debug logging for troubleshooting
+                if (isPressed && keyCode == KeyCode.F2)
+                {
+                    UnityEngine.Debug.Log($"SystemInput detected {keyCode} press (unfocused)");
+                }
+                
+                return isPressed;
+            }
         }
-        // Keep grey colors unchanged
+        catch (System.Exception e)
+        {
+            UnityEngine.Debug.LogWarning($"SystemInput.GetKey failed for {keyCode}: {e.Message}");
+        }
+        return false;
     }
 
-
-
-#if UNITY_EDITOR
-    void LateUpdate()
+    public static bool GetMouseButton(int button)
     {
-        if (Input.GetMouseButtonDown(0))
+        try
         {
-            var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+            int vKey = 0;
+            switch (button)
             {
-                position = Input.mousePosition
-            };
-            var results = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
-            UnityEngine.EventSystems.EventSystem.current.RaycastAll(pointer, results);
-            if (results.Count == 0)
-            {
-                // Debug.Log("No UI element under mouse.");
+                case 0: vKey = 0x01; break; // Left mouse button
+                case 1: vKey = 0x02; break; // Right mouse button
+                case 2: vKey = 0x04; break; // Middle mouse button
+                default: return false;
             }
-            else
-            {
-                // foreach (var r in results)
-                // {
-                //     Debug.Log($"UI under mouse: {r.gameObject.name} (sortingLayer={r.sortingLayer}, sortingOrder={r.sortingOrder})");
-                // }
-            }
+            
+            short keyState = GetAsyncKeyState(vKey);
+            return (keyState & 0x8000) != 0;
         }
+        catch (System.Exception e)
+        {
+            UnityEngine.Debug.LogWarning($"SystemInput.GetMouseButton failed for button {button}: {e.Message}");
+            return false;
+        }
+    }
+#else
+    public static bool GetKey(KeyCode keyCode)
+    {
+        return false;
+    }
+
+    public static bool GetMouseButton(int button)
+    {
+        return false;
     }
 #endif
+
+
 }
+
+}
+
