@@ -167,14 +167,6 @@ public class CrosshairRenderer : Graphic
     private Texture2D frameSaturationTexture;
     private Texture2D hairSaturationTexture;
     private Texture2D dotSaturationTexture;
-    
-    // Store original sprite properties to maintain size
-    private Vector2 originalFrameSatSize;
-    private Vector2 originalHairSatSize;
-    private Vector2 originalDotSatSize;
-    private float originalFrameSatPPU;
-    private float originalHairSatPPU;
-    private float originalDotSatPPU;
 
     private enum SpecialKey
     {
@@ -554,67 +546,17 @@ public class CrosshairRenderer : Graphic
         ApplyTabButtonAnimStateInstant(hairTabAnim);
         ApplyTabButtonAnimStateInstant(dotTabAnim);
 
-        // Initialize saturation gradient textures - first store original sizes
-        StoreOriginalSaturationSizes();
+        // Initialize saturation gradient textures
         UpdateSaturationReferenceColor(frameSaturationRefRenderer, frameHue);
         UpdateSaturationReferenceColor(hairSaturationRefRenderer, hairHue);
         UpdateSaturationReferenceColor(dotSaturationRefRenderer, dotHue);
     }
 
-    private void StoreOriginalSaturationSizes()
+    private Texture2D GenerateSaturationGradient(float hue)
     {
-        // Use the actual saturation texture size (960x150) as our reference
-        Vector2 defaultSize = new Vector2(960, 150);
-        float defaultPPU = 100f;
-        
-        // Store frame saturation original properties
-        if (frameSaturationRefRenderer != null && frameSaturationRefRenderer.sprite != null)
-        {
-            var sprite = frameSaturationRefRenderer.sprite;
-            originalFrameSatSize = sprite.rect.size;
-            originalFrameSatPPU = sprite.pixelsPerUnit;
-        }
-        else
-        {
-            originalFrameSatSize = defaultSize;
-            originalFrameSatPPU = defaultPPU;
-        }
-
-        // Store hair saturation original properties
-        if (hairSaturationRefRenderer != null && hairSaturationRefRenderer.sprite != null)
-        {
-            var sprite = hairSaturationRefRenderer.sprite;
-            originalHairSatSize = sprite.rect.size;
-            originalHairSatPPU = sprite.pixelsPerUnit;
-        }
-        else
-        {
-            originalHairSatSize = defaultSize;
-            originalHairSatPPU = defaultPPU;
-        }
-
-        // Store dot saturation original properties
-        if (dotSaturationRefRenderer != null && dotSaturationRefRenderer.sprite != null)
-        {
-            var sprite = dotSaturationRefRenderer.sprite;
-            originalDotSatSize = sprite.rect.size;
-            originalDotSatPPU = sprite.pixelsPerUnit;
-        }
-        else
-        {
-            originalDotSatSize = defaultSize;
-            originalDotSatPPU = defaultPPU;
-        }
-    }
-
-    private Texture2D GenerateSaturationGradient(float hue, Vector2 size)
-    {
-        int width = Mathf.RoundToInt(size.x);
-        int height = Mathf.RoundToInt(size.y);
-        
-        // Ensure minimum size to prevent errors
-        width = Mathf.Max(width, 32);
-        height = Mathf.Max(height, 16);
+        // Use the original Saturation.png dimensions: 960x150
+        int width = 960;
+        int height = 150;
         
         Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
         Color[] colors = new Color[width * height];
@@ -646,46 +588,21 @@ public class CrosshairRenderer : Graphic
     {
         if (renderer == null) return;
         
-        // Get the appropriate original size and pixels per unit
-        Vector2 originalSize;
-        float originalPPU;
-        
-        if (renderer == frameSaturationRefRenderer)
-        {
-            originalSize = originalFrameSatSize;
-            originalPPU = originalFrameSatPPU;
-        }
-        else if (renderer == hairSaturationRefRenderer)
-        {
-            originalSize = originalHairSatSize;
-            originalPPU = originalHairSatPPU;
-        }
-        else if (renderer == dotSaturationRefRenderer)
-        {
-            originalSize = originalDotSatSize;
-            originalPPU = originalDotSatPPU;
-        }
-        else
-        {
-            originalSize = new Vector2(256, 32);
-            originalPPU = 100f;
-        }
-        
         // Destroy old texture to prevent memory leaks
         if (cachedTexture != null)
         {
             DestroyImmediate(cachedTexture);
         }
         
-        // Generate new gradient texture with current hue and original size
-        cachedTexture = GenerateSaturationGradient(hue, originalSize);
+        // Generate new gradient texture with current hue
+        cachedTexture = GenerateSaturationGradient(hue);
         
-        // Create sprite from texture with original pixels per unit
+        // Create sprite from texture using original Saturation.png properties
         Sprite newSprite = Sprite.Create(
             cachedTexture,
-            new Rect(0, 0, originalSize.x, originalSize.y),
+            new Rect(0, 0, 960, 150),
             new Vector2(0.5f, 0.5f),
-            originalPPU
+            100f // pixels per unit to match original
         );
         
         // Apply the new sprite
