@@ -12,9 +12,179 @@ using System.Text;
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
 using WinForms = System.Windows.Forms;  // ← Keep the alias
 #endif
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 
 
+
+public enum UITheme
+{
+    Coral = 0,     // Regular (current)
+    Ember = 1,     // Orange
+    Gold = 2,      // Yellow  
+    Moss = 3,      // Green
+    Tide = 4,      // Blue
+    Amethyst = 5,  // Purple
+    Lotus = 6,     // Pink
+    Shadow = 7,    // Black
+    Snow = 8       // White
+}
+
+[System.Serializable]
+public class UIThemeColors
+{
+    [Header("Direct HSV Color Control")]
+    [Header("Primary Color")]
+    [Range(0f, 1f)] public float primaryHue = 0f;
+    [Range(0f, 1f)] public float primarySaturation = 1f;
+    [Range(0f, 1f)] public float primaryValue = 1f;
+    
+    [Header("Secondary Color")]
+    [Range(0f, 1f)] public float secondaryHue = 0f;
+    [Range(0f, 1f)] public float secondarySaturation = 0.8f;
+    [Range(0f, 1f)] public float secondaryValue = 0.7f;
+    
+    [Header("Accent Color")]
+    [Range(0f, 1f)] public float accentHue = 0f;
+    [Range(0f, 1f)] public float accentSaturation = 0.6f;
+    [Range(0f, 1f)] public float accentValue = 1f;
+    
+    [Header("Background Color")]
+    [Range(0f, 1f)] public float backgroundHue = 0f;
+    [Range(0f, 1f)] public float backgroundSaturation = 0.3f;
+    [Range(0f, 1f)] public float backgroundValue = 0.15f;
+    
+    [Header("Text Color")]
+    [Range(0f, 1f)] public float textHue = 0f;
+    [Range(0f, 1f)] public float textSaturation = 0f;
+    [Range(0f, 1f)] public float textValue = 0.95f;
+    
+    [Header("Slider Fill Color")]
+    [Range(0f, 1f)] public float sliderFillHue = 0f;
+    [Range(0f, 1f)] public float sliderFillSaturation = 1f;
+    [Range(0f, 1f)] public float sliderFillValue = 1f;
+    
+    [Header("Slider Handle Color")]
+    [Range(0f, 1f)] public float sliderHandleHue = 0f;
+    [Range(0f, 1f)] public float sliderHandleSaturation = 0.6f;
+    [Range(0f, 1f)] public float sliderHandleValue = 1f;
+    
+    [Header("Dropdown Color")]
+    [Range(0f, 1f)] public float dropdownHue = 0f;
+    [Range(0f, 1f)] public float dropdownSaturation = 0.9f;
+    [Range(0f, 1f)] public float dropdownValue = 0.8f;
+    
+    [Header("Theme Settings")]
+    [SerializeField] public bool useCustomColors = false; // If true, use custom colors instead of generated ones
+    [SerializeField] public bool isMasterTheme = false;   // If true, this theme serves as the base for other themes
+    
+    // Generated RGB colors (read-only)
+    [Header("Generated Colors (Read-Only)")]
+    [SerializeField] private Color primaryColor;
+    [SerializeField] private Color secondaryColor;
+    [SerializeField] private Color accentColor;
+    [SerializeField] private Color backgroundColor;
+    [SerializeField] private Color textColor;
+    [SerializeField] private Color sliderFillColor;
+    [SerializeField] private Color sliderHandleColor;
+    [SerializeField] private Color dropdownColor;
+    
+    // Public getters for the colors
+    public Color PrimaryColor => primaryColor;
+    public Color SecondaryColor => secondaryColor;
+    public Color AccentColor => accentColor;
+    public Color BackgroundColor => backgroundColor;
+    public Color TextColor => textColor;
+    public Color SliderFillColor => sliderFillColor;
+    public Color SliderHandleColor => sliderHandleColor;
+    public Color DropdownColor => dropdownColor;
+    
+    // Method to generate all colors from HSV values
+    public void GenerateColorsFromHSV()
+    {
+        // Generate RGB colors from HSV values
+        primaryColor = Color.HSVToRGB(primaryHue, primarySaturation, primaryValue);
+        secondaryColor = Color.HSVToRGB(secondaryHue, secondarySaturation, secondaryValue);
+        accentColor = Color.HSVToRGB(accentHue, accentSaturation, accentValue);
+        backgroundColor = Color.HSVToRGB(backgroundHue, backgroundSaturation, backgroundValue);
+        textColor = Color.HSVToRGB(textHue, textSaturation, textValue);
+        sliderFillColor = Color.HSVToRGB(sliderFillHue, sliderFillSaturation, sliderFillValue);
+        sliderHandleColor = Color.HSVToRGB(sliderHandleHue, sliderHandleSaturation, sliderHandleValue);
+        dropdownColor = Color.HSVToRGB(dropdownHue, dropdownSaturation, dropdownValue);
+        
+        // Ensure alpha values are appropriate
+        primaryColor.a = 1f;
+        secondaryColor.a = 1f;
+        accentColor.a = 1f;
+        backgroundColor.a = 0.9f;
+        textColor.a = 1f;
+        sliderFillColor.a = 1f;
+        sliderHandleColor.a = 1f;
+        dropdownColor.a = 1f;
+    }
+    
+    // Method to inherit HSV values from a master theme
+    public void InheritFromMaster(UIThemeColors masterTheme, float newHue)
+    {
+        if (masterTheme == null || !masterTheme.isMasterTheme) return;
+        
+        // Don't override if this theme has custom colors enabled
+        if (useCustomColors) return;
+        
+        // Calculate hue shift
+        float hueShift = newHue - masterTheme.primaryHue;
+        
+        // Apply the same HSV transformations to the master theme's values
+        primaryHue = (masterTheme.primaryHue + hueShift) % 1f;
+        secondaryHue = (masterTheme.secondaryHue + hueShift) % 1f;
+        accentHue = (masterTheme.accentHue + hueShift) % 1f;
+        backgroundHue = (masterTheme.backgroundHue + hueShift) % 1f;
+        textHue = masterTheme.textHue; // Keep text hue the same for readability
+        sliderFillHue = (masterTheme.sliderFillHue + hueShift) % 1f;
+        sliderHandleHue = (masterTheme.sliderHandleHue + hueShift) % 1f;
+        dropdownHue = (masterTheme.dropdownHue + hueShift) % 1f;
+        
+        // Copy saturation and value from master theme
+        primarySaturation = masterTheme.primarySaturation;
+        primaryValue = masterTheme.primaryValue;
+        secondarySaturation = masterTheme.secondarySaturation;
+        secondaryValue = masterTheme.secondaryValue;
+        accentSaturation = masterTheme.accentSaturation;
+        accentValue = masterTheme.accentValue;
+        backgroundSaturation = masterTheme.backgroundSaturation;
+        backgroundValue = masterTheme.backgroundValue;
+        textSaturation = masterTheme.textSaturation;
+        textValue = masterTheme.textValue;
+        sliderFillSaturation = masterTheme.sliderFillSaturation;
+        sliderFillValue = masterTheme.sliderFillValue;
+        sliderHandleSaturation = masterTheme.sliderHandleSaturation;
+        sliderHandleValue = masterTheme.sliderHandleValue;
+        dropdownSaturation = masterTheme.dropdownSaturation;
+        dropdownValue = masterTheme.dropdownValue;
+        
+        // Generate the RGB colors
+        GenerateColorsFromHSV();
+    }
+
+    // Method to detect if HSV values have been manually customized
+    public bool HasCustomColors()
+    {
+        // If useCustomColors is already set to true, return true
+        if (useCustomColors) return true;
+        
+        // For now, we'll consider any non-zero HSV values as custom
+        // This is a simplified approach - you might want to compare against default values
+        return true; // Always consider HSV values as custom since they're manually set
+    }
+    
+    // Legacy method for backward compatibility (now just calls GenerateColorsFromHSV)
+    public void GenerateColorsFromBase()
+    {
+        GenerateColorsFromHSV();
+    }
+}
 
 public enum CrosshairShape { Circle, Square, Triangle }
 public enum HairStyle { Even, Custom }
@@ -138,6 +308,39 @@ public class CrosshairRenderer : Graphic
     public UnityEngine.UI.Button generateImageButton;
     public UnityEngine.UI.Button clearButton;
     public TMP_Dropdown presetDropdown;
+    
+    [Header("UI Theming")]
+    public TMP_Dropdown uiThemeDropdown;
+    
+    [Header("Theme Base Colors (Editor Only)")]
+    [SerializeField] private Color coralBaseColor = new Color(1.0f, 0.5f, 0.3f, 1.0f);
+    [SerializeField] private Color emberBaseColor = new Color(1.0f, 0.4f, 0.0f, 1.0f);
+    [SerializeField] private Color goldBaseColor = new Color(1.0f, 0.8f, 0.0f, 1.0f);
+    [SerializeField] private Color mossBaseColor = new Color(0.4f, 0.8f, 0.3f, 1.0f);
+    [SerializeField] private Color tideBaseColor = new Color(0.2f, 0.6f, 1.0f, 1.0f);
+    [SerializeField] private Color amethystBaseColor = new Color(0.7f, 0.3f, 1.0f, 1.0f);
+    [SerializeField] private Color lotusBaseColor = new Color(1.0f, 0.4f, 0.8f, 1.0f);
+    [SerializeField] private Color shadowBaseColor = new Color(0.3f, 0.3f, 0.3f, 1.0f);
+    [SerializeField] private Color snowBaseColor = new Color(0.9f, 0.9f, 0.9f, 1.0f);
+    
+    [Header("Theme Color Customization (Editor Only)")]
+    [SerializeField] public UIThemeColors coralThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors emberThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors goldThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors mossThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors tideThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors amethystThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors lotusThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors shadowThemeColors = new UIThemeColors();
+    [SerializeField] public UIThemeColors snowThemeColors = new UIThemeColors();
+    
+    [Header("Additional Objects to Theme")]
+    [SerializeField] private List<GameObject> additionalThemeObjects = new List<GameObject>();
+    
+    [Header("Asset Folder Theming")]
+    [SerializeField] private string assetFolderPath = "Assets/UI"; // Folder to recolor assets in
+    [SerializeField] private bool enableAssetFolderTheming = true;
+    [SerializeField] private bool includeSubfolders = true;
 
     [Header("Snapping")]
     public Toggle snapRotationToggle;
@@ -145,7 +348,7 @@ public class CrosshairRenderer : Graphic
 
     [Header("Keybinds")]
     public UnityEngine.UI.Button keybindRecordButton;
-    public GameObject uiRoot; // Assign your UI root GameObject here
+    public GameObject uiRoot; // Assign your main UI root GameObject here (used for hiding UI and theming)
     
     [Header("Preset Keybinds")]
     public Toggle presetKeybindsToggle;
@@ -227,6 +430,10 @@ public class CrosshairRenderer : Graphic
     private bool isUpdatingUI = false; // ADDED: Additional protection for UI updates
     private bool isSavingPreset = false; // ADDED: Prevents concurrent saves
     private float lastPresetSaveTime = 0f; // ADDED: Debounce saves
+    
+    // UI Theme System
+    private UITheme currentUITheme = UITheme.Coral;
+    private Dictionary<UITheme, UIThemeColors> themeColorPalettes;
 
     // --- Preset Keybind System ---
     private List<KeybindEntry>[] presetKeybinds = new List<KeybindEntry>[PRESET_COUNT];
@@ -553,6 +760,11 @@ public class CrosshairRenderer : Graphic
         
         // Setup preset system
         SetupPresetSystem();
+        
+        // Setup UI Theme System
+        LoadThemeCustomizationsFromStorage(); // Load custom theme colors first
+        SetupUIThemeSystem();
+        LoadUIThemeFromStorage();
         
         // Setup preset keybind system
         SetupPresetKeybindSystem();
@@ -1563,6 +1775,1179 @@ private void OnDestroy()
         Debug.Log("All presets and keybinds saved before application quit");
     }
 
+    // --- UI Theme System Methods ---
+    private void SetupUIThemeSystem()
+    {
+        InitializeThemeColorPalettes();
+        
+        // Setup theme dropdown
+        if (uiThemeDropdown != null)
+        {
+            uiThemeDropdown.ClearOptions();
+            var options = new List<string>();
+            
+            options.Add("Coral (Regular)");
+            options.Add("Ember (Orange)");
+            options.Add("Gold (Yellow)");
+            options.Add("Moss (Green)");
+            options.Add("Tide (Blue)");
+            options.Add("Amethyst (Purple)");
+            options.Add("Lotus (Pink)");
+            options.Add("Shadow (Black)");
+            options.Add("Snow (White)");
+            
+            uiThemeDropdown.AddOptions(options);
+            uiThemeDropdown.value = (int)currentUITheme;
+            uiThemeDropdown.onValueChanged.AddListener(OnUIThemeChanged);
+        }
+    }
+    
+    private void InitializeThemeColorPalettes()
+    {
+        themeColorPalettes = new Dictionary<UITheme, UIThemeColors>();
+        
+        // Initialize theme colors from editor-customizable fields
+        InitializeThemeFromEditor(coralThemeColors, coralBaseColor, UITheme.Coral);
+        InitializeThemeFromEditor(emberThemeColors, emberBaseColor, UITheme.Ember);
+        InitializeThemeFromEditor(goldThemeColors, goldBaseColor, UITheme.Gold);
+        InitializeThemeFromEditor(mossThemeColors, mossBaseColor, UITheme.Moss);
+        InitializeThemeFromEditor(tideThemeColors, tideBaseColor, UITheme.Tide);
+        InitializeThemeFromEditor(amethystThemeColors, amethystBaseColor, UITheme.Amethyst);
+        InitializeThemeFromEditor(lotusThemeColors, lotusBaseColor, UITheme.Lotus);
+        InitializeThemeFromEditor(shadowThemeColors, shadowBaseColor, UITheme.Shadow);
+        InitializeThemeFromEditor(snowThemeColors, snowBaseColor, UITheme.Snow);
+        
+        // Load saved HSV values
+        LoadThemeHSVValues();
+        
+        // Apply master theme inheritance if any theme is marked as master
+        ApplyMasterThemeInheritance();
+    }
+    
+    private void InitializeThemeFromEditor(UIThemeColors themeColors, Color baseColor, UITheme theme)
+    {
+        // Convert base color to HSV for initialization
+        Color.RGBToHSV(baseColor, out float h, out float s, out float v);
+        
+        // Only initialize HSV values from base color if they haven't been manually set
+        // Check if the theme has custom colors enabled or if HSV values differ from defaults
+        bool hasCustomHSV = themeColors.useCustomColors || 
+                           themeColors.primaryHue != 0f || 
+                           themeColors.primarySaturation != 1f || 
+                           themeColors.primaryValue != 1f;
+        
+        if (!hasCustomHSV)
+        {
+            // Only initialize if no custom values have been set
+            themeColors.primaryHue = h;
+            themeColors.primarySaturation = s;
+            themeColors.primaryValue = v;
+            
+            // Set other colors with variations
+            themeColors.secondaryHue = h;
+            themeColors.secondarySaturation = s * 0.8f;
+            themeColors.secondaryValue = v * 0.7f;
+            
+            themeColors.accentHue = h;
+            themeColors.accentSaturation = s * 0.6f;
+            themeColors.accentValue = Mathf.Min(v * 1.2f, 1f);
+            
+            themeColors.backgroundHue = h;
+            themeColors.backgroundSaturation = s * 0.3f;
+            themeColors.backgroundValue = v * 0.15f;
+            
+            themeColors.textHue = 0f;
+            themeColors.textSaturation = 0f;
+            themeColors.textValue = 0.95f;
+            
+            themeColors.sliderFillHue = h;
+            themeColors.sliderFillSaturation = s;
+            themeColors.sliderFillValue = v;
+            
+            themeColors.sliderHandleHue = h;
+            themeColors.sliderHandleSaturation = s * 0.6f;
+            themeColors.sliderHandleValue = Mathf.Min(v * 1.2f, 1f);
+            
+            themeColors.dropdownHue = h;
+            themeColors.dropdownSaturation = s * 0.9f;
+            themeColors.dropdownValue = v * 0.8f;
+        }
+        
+        // Always generate colors from HSV values
+        themeColors.GenerateColorsFromHSV();
+        
+        themeColorPalettes[theme] = themeColors;
+    }
+    
+    private void ApplyMasterThemeInheritance()
+    {
+        // Find the master theme
+        UIThemeColors masterTheme = null;
+        UITheme masterThemeEnum = UITheme.Coral; // Default fallback
+        
+        foreach (var kvp in themeColorPalettes)
+        {
+            if (kvp.Value.isMasterTheme)
+            {
+                masterTheme = kvp.Value;
+                masterThemeEnum = kvp.Key;
+                break;
+            }
+        }
+        
+        // If no master theme is found, use Coral as default
+        if (masterTheme == null)
+        {
+            masterTheme = themeColorPalettes[UITheme.Coral];
+            masterThemeEnum = UITheme.Coral;
+        }
+        
+        // Apply inheritance to all non-master themes
+        foreach (var kvp in themeColorPalettes)
+        {
+            if (kvp.Key != masterThemeEnum && !kvp.Value.isMasterTheme)
+            {
+                // Convert the theme's primary color to HSV to get the hue for inheritance
+                Color.RGBToHSV(kvp.Value.PrimaryColor, out float h, out float s, out float v);
+                kvp.Value.InheritFromMaster(masterTheme, h);
+            }
+        }
+    }
+    
+    private UIThemeColors CreateThemeFromBaseColor(Color baseColor)
+    {
+        var themeColors = new UIThemeColors();
+        
+        // Convert base color to HSV for initialization
+        Color.RGBToHSV(baseColor, out float h, out float s, out float v);
+        
+        // Initialize HSV values from base color
+        themeColors.primaryHue = h;
+        themeColors.primarySaturation = s;
+        themeColors.primaryValue = v;
+        
+        // Set other colors with variations
+        themeColors.secondaryHue = h;
+        themeColors.secondarySaturation = s * 0.8f;
+        themeColors.secondaryValue = v * 0.7f;
+        
+        themeColors.accentHue = h;
+        themeColors.accentSaturation = s * 0.6f;
+        themeColors.accentValue = Mathf.Min(v * 1.2f, 1f);
+        
+        themeColors.backgroundHue = h;
+        themeColors.backgroundSaturation = s * 0.3f;
+        themeColors.backgroundValue = v * 0.15f;
+        
+        themeColors.textHue = 0f;
+        themeColors.textSaturation = 0f;
+        themeColors.textValue = 0.95f;
+        
+        themeColors.sliderFillHue = h;
+        themeColors.sliderFillSaturation = s;
+        themeColors.sliderFillValue = v;
+        
+        themeColors.sliderHandleHue = h;
+        themeColors.sliderHandleSaturation = s * 0.6f;
+        themeColors.sliderHandleValue = Mathf.Min(v * 1.2f, 1f);
+        
+        themeColors.dropdownHue = h;
+        themeColors.dropdownSaturation = s * 0.9f;
+        themeColors.dropdownValue = v * 0.8f;
+        
+        themeColors.GenerateColorsFromHSV();
+        return themeColors;
+    }
+    
+    private void OnUIThemeChanged(int themeIndex)
+    {
+        currentUITheme = (UITheme)themeIndex;
+        Debug.Log($"UI Theme changed to: {currentUITheme}");
+        ApplyUITheme(currentUITheme);
+        SaveUIThemeToStorage();
+        SaveThemeCustomizationsToStorage(); // Save theme customizations when theme changes
+        
+        // Force canvas to refresh
+        Canvas.ForceUpdateCanvases();
+    }
+    
+    // Public method to test theme application
+    [ContextMenu("Apply Current Theme (Test Text Colors)")]
+    public void TestApplyCurrentTheme()
+    {
+        Debug.Log($"Testing theme application for: {currentUITheme}");
+        InitializeThemeColorPalettes();
+        ApplyUITheme(currentUITheme);
+        
+        // Log the text color being applied
+        if (themeColorPalettes != null && themeColorPalettes.ContainsKey(currentUITheme))
+        {
+            var currentColors = themeColorPalettes[currentUITheme];
+            Debug.Log($"Applied off-white text color: {currentColors.TextColor} (R:{currentColors.TextColor.r:F2}, G:{currentColors.TextColor.g:F2}, B:{currentColors.TextColor.b:F2})");
+        }
+        
+        // Also test additional objects if any are assigned
+        if (additionalThemeObjects != null && additionalThemeObjects.Count > 0)
+        {
+            Debug.Log($"Testing additional theme objects: {additionalThemeObjects.Count} objects");
+            foreach (var obj in additionalThemeObjects)
+            {
+                if (obj != null)
+                {
+                    var spriteRenderers = obj.GetComponentsInChildren<SpriteRenderer>(true);
+                    Debug.Log($"Found {spriteRenderers.Length} SpriteRenderer components in {obj.name}");
+                }
+            }
+        }
+    }
+    
+    // Helper methods for theme management
+    [ContextMenu("Set Coral as Master Theme")]
+    public void SetCoralAsMasterTheme()
+    {
+        coralThemeColors.isMasterTheme = true;
+        emberThemeColors.isMasterTheme = false;
+        goldThemeColors.isMasterTheme = false;
+        mossThemeColors.isMasterTheme = false;
+        tideThemeColors.isMasterTheme = false;
+        amethystThemeColors.isMasterTheme = false;
+        lotusThemeColors.isMasterTheme = false;
+        shadowThemeColors.isMasterTheme = false;
+        snowThemeColors.isMasterTheme = false;
+        Debug.Log("Coral theme set as master theme");
+    }
+    
+    [ContextMenu("Enable Custom Colors for All Themes")]
+    public void EnableCustomColorsForAllThemes()
+    {
+        coralThemeColors.useCustomColors = true;
+        emberThemeColors.useCustomColors = true;
+        goldThemeColors.useCustomColors = true;
+        mossThemeColors.useCustomColors = true;
+        tideThemeColors.useCustomColors = true;
+        amethystThemeColors.useCustomColors = true;
+        lotusThemeColors.useCustomColors = true;
+        shadowThemeColors.useCustomColors = true;
+        snowThemeColors.useCustomColors = true;
+        Debug.Log("Custom colors enabled for all themes");
+    }
+    
+    [ContextMenu("Disable Custom Colors for All Themes")]
+    public void DisableCustomColorsForAllThemes()
+    {
+        coralThemeColors.useCustomColors = false;
+        emberThemeColors.useCustomColors = false;
+        goldThemeColors.useCustomColors = false;
+        mossThemeColors.useCustomColors = false;
+        tideThemeColors.useCustomColors = false;
+        amethystThemeColors.useCustomColors = false;
+        lotusThemeColors.useCustomColors = false;
+        shadowThemeColors.useCustomColors = false;
+        snowThemeColors.useCustomColors = false;
+        Debug.Log("Custom colors disabled for all themes - colors will be generated from base colors");
+    }
+    
+    [ContextMenu("Regenerate All Theme Colors from Base")]
+    public void RegenerateAllThemeColorsFromBase()
+    {
+        coralThemeColors.GenerateColorsFromBase();
+        emberThemeColors.GenerateColorsFromBase();
+        goldThemeColors.GenerateColorsFromBase();
+        mossThemeColors.GenerateColorsFromBase();
+        tideThemeColors.GenerateColorsFromBase();
+        amethystThemeColors.GenerateColorsFromBase();
+        lotusThemeColors.GenerateColorsFromBase();
+        shadowThemeColors.GenerateColorsFromBase();
+        snowThemeColors.GenerateColorsFromBase();
+        Debug.Log("All theme colors regenerated from base colors");
+    }
+    
+    [ContextMenu("Save Theme Customizations")]
+    public void SaveThemeCustomizations()
+    {
+        SaveThemeCustomizationsToStorage();
+        Debug.Log("Theme customizations saved to storage");
+    }
+    
+    [ContextMenu("Auto-Detect and Save Custom Colors")]
+    public void AutoDetectAndSaveCustomColors()
+    {
+        // Check all themes for custom colors and save them
+        if (coralThemeColors.HasCustomColors()) coralThemeColors.useCustomColors = true;
+        if (emberThemeColors.HasCustomColors()) emberThemeColors.useCustomColors = true;
+        if (goldThemeColors.HasCustomColors()) goldThemeColors.useCustomColors = true;
+        if (mossThemeColors.HasCustomColors()) mossThemeColors.useCustomColors = true;
+        if (tideThemeColors.HasCustomColors()) tideThemeColors.useCustomColors = true;
+        if (amethystThemeColors.HasCustomColors()) amethystThemeColors.useCustomColors = true;
+        if (lotusThemeColors.HasCustomColors()) lotusThemeColors.useCustomColors = true;
+        if (shadowThemeColors.HasCustomColors()) shadowThemeColors.useCustomColors = true;
+        if (snowThemeColors.HasCustomColors()) snowThemeColors.useCustomColors = true;
+        
+        SaveThemeCustomizationsToStorage();
+        Debug.Log("Auto-detected and saved custom colors for all themes");
+    }
+    
+    // Public method to force theme application
+    public void ForceApplyTheme(UITheme theme)
+    {
+        Debug.Log($"Force applying theme: {theme}");
+        currentUITheme = theme;
+        if (uiThemeDropdown != null)
+        {
+            uiThemeDropdown.SetValueWithoutNotify((int)theme);
+        }
+        ApplyUITheme(theme);
+    }
+    
+    private void ApplyUITheme(UITheme theme)
+    {
+        if (!themeColorPalettes.ContainsKey(theme)) 
+        {
+            Debug.LogError($"Theme {theme} not found in color palettes!");
+            return;
+        }
+        
+        UIThemeColors colors = themeColorPalettes[theme];
+        Debug.Log($"Applying UI Theme: {theme} with primary color: {colors.PrimaryColor}");
+        
+        // Apply theme to explicitly referenced elements first (for guaranteed coverage)
+        ApplyThemeToSpecificElements(colors);
+        
+        // Then recursively theme ALL UI elements in the UI Root
+        if (uiRoot != null)
+        {
+            Debug.Log($"Theming UI Root: {uiRoot.name}");
+            ApplyThemeToAllUIElements(uiRoot, colors);
+        }
+        else
+        {
+            Debug.LogWarning("UI Root not assigned! Using Canvas fallback...");
+            
+            // Fallback: Try to find Canvas and theme everything under it
+            Canvas canvas = FindObjectOfType<Canvas>();
+            if (canvas != null)
+            {
+                Debug.Log($"Using Canvas as fallback for UI theming: {canvas.name}");
+                ApplyThemeToAllUIElements(canvas.gameObject, colors);
+            }
+            else
+            {
+                Debug.LogError("No Canvas found for UI theming!");
+            }
+        }
+        
+        // Apply theme to additional objects
+        ApplyThemeToAdditionalObjects(colors);
+        
+        // Apply runtime theme to materials and sprites (non-destructive)
+        if (enableAssetFolderTheming)
+        {
+            ApplyRuntimeThemeToAssets(colors);
+        }
+    }
+    
+    private void ApplyThemeToSpecificElements(UIThemeColors colors)
+    {
+        // Apply theme to explicitly referenced elements (fallback/priority theming)
+        ApplyThemeToButton(frameTabButton, colors);
+        ApplyThemeToButton(hairTabButton, colors);
+        ApplyThemeToButton(dotTabButton, colors);
+        ApplyThemeToButton(saveCodeButton, colors);
+        ApplyThemeToButton(loadCodeButton, colors);
+        ApplyThemeToButton(generateImageButton, colors);
+        ApplyThemeToButton(clearButton, colors);
+        ApplyThemeToButton(hideCrosshairButton, colors);
+        ApplyThemeToButton(keybindRecordButton, colors);
+        ApplyThemeToButton(clearAllPresetKeybindsButton, colors);
+        
+        // Apply theme to preset keybind buttons
+        for (int i = 0; i < presetKeybindButtons.Length; i++)
+        {
+            ApplyThemeToButton(presetKeybindButtons[i], colors);
+        }
+        
+        // Apply theme to explicitly referenced sliders
+        ApplyThemeToSlider(frameOpacitySlider, colors);
+        ApplyThemeToSlider(frameScaleSlider, colors);
+        ApplyThemeToSlider(frameRotationSlider, colors);
+        ApplyThemeToSlider(frameThicknessSlider, colors);
+        ApplyThemeToSlider(frameColorSlider, colors);
+        ApplyThemeToSlider(frameSaturationSlider, colors);
+        ApplyThemeToSlider(frameValueSlider, colors);
+        
+        ApplyThemeToSlider(hairCountSlider, colors);
+        ApplyThemeToSlider(customAngleSlider, colors);
+        ApplyThemeToSlider(hairThicknessSlider, colors);
+        ApplyThemeToSlider(hairLengthSlider, colors);
+        ApplyThemeToSlider(hairsRotationSlider, colors);
+        ApplyThemeToSlider(hairColorSlider, colors);
+        ApplyThemeToSlider(hairSaturationSlider, colors);
+        ApplyThemeToSlider(hairValueSlider, colors);
+        ApplyThemeToSlider(hairOpacitySlider, colors);
+        
+        ApplyThemeToSlider(dotOpacitySlider, colors);
+        ApplyThemeToSlider(dotScaleSlider, colors);
+        ApplyThemeToSlider(dotRotationSlider, colors);
+        ApplyThemeToSlider(dotColorSlider, colors);
+        ApplyThemeToSlider(dotSaturationSlider, colors);
+        ApplyThemeToSlider(dotValueSlider, colors);
+        
+        // Apply theme to explicitly referenced dropdowns
+        ApplyThemeToDropdown(frameShapeDropdown, colors);
+        ApplyThemeToDropdown(hairStyleDropdown, colors);
+        ApplyThemeToDropdown(dotShapeDropdown, colors);
+        ApplyThemeToDropdown(presetDropdown, colors);
+        ApplyThemeToDropdown(uiThemeDropdown, colors);
+        
+        // Apply theme to explicitly referenced toggles
+        ApplyThemeToToggle(frameFilledToggle, colors);
+        ApplyThemeToToggle(dotFilledToggle, colors);
+        ApplyThemeToToggle(hairsExtendPastFrameToggle, colors);
+        ApplyThemeToToggle(snapRotationToggle, colors);
+    }
+    
+    private void ApplyThemeToAllUIElements(GameObject root, UIThemeColors colors)
+    {
+        // Get all UI components in this GameObject and its children
+        // Use includeInactive = true to catch dropdown templates and hidden panels
+        var allButtons = root.GetComponentsInChildren<UnityEngine.UI.Button>(true);
+        var allSliders = root.GetComponentsInChildren<Slider>(true);
+        var allDropdowns = root.GetComponentsInChildren<TMP_Dropdown>(true);
+        var allToggles = root.GetComponentsInChildren<Toggle>(true);
+        var allImages = root.GetComponentsInChildren<UnityEngine.UI.Image>(true);
+        var allTMPTexts = root.GetComponentsInChildren<TMPro.TMP_Text>(true);
+        var allInputFields = root.GetComponentsInChildren<TMPro.TMP_InputField>(true);
+        var allScrollbars = root.GetComponentsInChildren<UnityEngine.UI.Scrollbar>(true);
+        var allScrollRects = root.GetComponentsInChildren<UnityEngine.UI.ScrollRect>(true);
+        var allSpriteRenderers = root.GetComponentsInChildren<SpriteRenderer>(true);
+        
+        Debug.Log($"Found UI elements - Buttons: {allButtons.Length}, Sliders: {allSliders.Length}, " +
+                  $"Dropdowns: {allDropdowns.Length}, Toggles: {allToggles.Length}, Images: {allImages.Length}, " +
+                  $"SpriteRenderers: {allSpriteRenderers.Length}");
+        
+        // Apply theme to all found buttons
+        int themedButtons = 0;
+        foreach (var button in allButtons)
+        {
+            ApplyThemeToButton(button, colors);
+            themedButtons++;
+            Debug.Log($"Themed button: {button.name} at path: {GetGameObjectPath(button.gameObject)}");
+        }
+        
+        // Apply theme to all found sliders
+        int themedSliders = 0;
+        foreach (var slider in allSliders)
+        {
+            ApplyThemeToSlider(slider, colors);
+            themedSliders++;
+        }
+        
+        // Apply theme to all found dropdowns
+        int themedDropdowns = 0;
+        foreach (var dropdown in allDropdowns)
+        {
+            ApplyThemeToDropdown(dropdown, colors);
+            themedDropdowns++;
+            Debug.Log($"Themed dropdown: {dropdown.name} at path: {GetGameObjectPath(dropdown.gameObject)}");
+        }
+        
+        // Apply theme to all found toggles
+        int themedToggles = 0;
+        foreach (var toggle in allToggles)
+        {
+            ApplyThemeToToggle(toggle, colors);
+            themedToggles++;
+            Debug.Log($"Themed toggle: {toggle.name} at path: {GetGameObjectPath(toggle.gameObject)}");
+        }
+        
+        // Apply theme to all found input fields
+        int themedInputFields = 0;
+        foreach (var inputField in allInputFields)
+        {
+            ApplyThemeToInputField(inputField, colors);
+            themedInputFields++;
+        }
+        
+        // Apply theme to all found scrollbars
+        int themedScrollbars = 0;
+        foreach (var scrollbar in allScrollbars)
+        {
+            ApplyThemeToScrollbar(scrollbar, colors);
+            themedScrollbars++;
+        }
+        
+        // Apply theme to all found scroll rects
+        int themedScrollRects = 0;
+        foreach (var scrollRect in allScrollRects)
+        {
+            ApplyThemeToScrollRect(scrollRect, colors);
+            themedScrollRects++;
+        }
+        
+        // Apply theme to standalone images (backgrounds, panels, etc.)
+        int themedImages = 0;
+        foreach (var image in allImages)
+        {
+            if (ApplyThemeToImage(image, colors))
+            {
+                themedImages++;
+            }
+        }
+        
+        // Apply theme to standalone text elements
+        int themedTexts = 0;
+        foreach (var text in allTMPTexts)
+        {
+            if (ApplyThemeToText(text, colors))
+            {
+                themedTexts++;
+            }
+        }
+        
+        // Apply theme to SpriteRenderer components
+        int themedSpriteRenderers = 0;
+        foreach (var spriteRenderer in allSpriteRenderers)
+        {
+            if (ApplyThemeToSpriteRenderer(spriteRenderer, colors))
+            {
+                themedSpriteRenderers++;
+                Debug.Log($"Themed SpriteRenderer: {spriteRenderer.name} at path: {GetGameObjectPath(spriteRenderer.gameObject)}");
+            }
+        }
+        
+        Debug.Log($"Applied {currentUITheme} theme to: {themedButtons} buttons, {themedSliders} sliders, " +
+                  $"{themedDropdowns} dropdowns, {themedToggles} toggles, {themedImages} images, " +
+                  $"{themedTexts} texts, {themedInputFields} input fields, {themedScrollbars} scrollbars, " +
+                  $"{themedScrollRects} scroll rects, {themedSpriteRenderers} sprite renderers");
+    }
+    
+    // Helper method to get full GameObject path for debugging
+    private string GetGameObjectPath(GameObject obj)
+    {
+        string path = obj.name;
+        Transform current = obj.transform.parent;
+        while (current != null)
+        {
+            path = current.name + "/" + path;
+            current = current.parent;
+        }
+        return path;
+    }
+    
+    private void ApplyThemeToButton(UnityEngine.UI.Button button, UIThemeColors colors)
+    {
+        if (button == null) return;
+        
+        var colorBlock = button.colors;
+        colorBlock.normalColor = colors.PrimaryColor;
+        colorBlock.highlightedColor = colors.AccentColor;
+        colorBlock.pressedColor = colors.SecondaryColor;
+        colorBlock.selectedColor = colors.AccentColor;
+        button.colors = colorBlock;
+        
+        // Apply text color if button has text
+        var text = button.GetComponentInChildren<TMPro.TMP_Text>();
+        if (text != null)
+        {
+            text.color = colors.TextColor;
+        }
+    }
+    
+    private void ApplyThemeToSlider(Slider slider, UIThemeColors colors)
+    {
+        if (slider == null) return;
+        
+        var colorBlock = slider.colors;
+        colorBlock.normalColor = colors.SliderHandleColor;
+        colorBlock.highlightedColor = colors.AccentColor;
+        colorBlock.pressedColor = colors.SecondaryColor;
+        colorBlock.selectedColor = colors.AccentColor;
+        slider.colors = colorBlock;
+        
+        // Apply fill color
+        var fillImage = slider.fillRect?.GetComponent<UnityEngine.UI.Image>();
+        if (fillImage != null)
+        {
+            fillImage.color = colors.SliderFillColor;
+        }
+        
+        // Apply background color if slider has a background
+        var backgroundImage = slider.GetComponent<UnityEngine.UI.Image>();
+        if (backgroundImage != null)
+        {
+            Color bgColor = colors.BackgroundColor;
+            bgColor.a = 0.3f; // Make background semi-transparent
+            backgroundImage.color = bgColor;
+        }
+        
+        // Apply handle color
+        var handleImage = slider.handleRect?.GetComponent<UnityEngine.UI.Image>();
+        if (handleImage != null)
+        {
+            handleImage.color = colors.SliderHandleColor;
+        }
+        
+        // Theme any child text elements (like value displays)
+        var textComponents = slider.GetComponentsInChildren<TMPro.TMP_Text>();
+        foreach (var text in textComponents)
+        {
+            text.color = colors.TextColor;
+        }
+    }
+    
+    private void ApplyThemeToDropdown(TMP_Dropdown dropdown, UIThemeColors colors)
+    {
+        if (dropdown == null) return;
+        
+        var colorBlock = dropdown.colors;
+        colorBlock.normalColor = colors.DropdownColor;
+        colorBlock.highlightedColor = colors.AccentColor;
+        colorBlock.pressedColor = colors.SecondaryColor;
+        colorBlock.selectedColor = colors.AccentColor;
+        dropdown.colors = colorBlock;
+        
+        // Apply text color
+        var text = dropdown.captionText;
+        if (text != null)
+        {
+            text.color = colors.TextColor;
+        }
+    }
+    
+    private void ApplyThemeToToggle(Toggle toggle, UIThemeColors colors)
+    {
+        if (toggle == null) return;
+        
+        var colorBlock = toggle.colors;
+        colorBlock.normalColor = colors.PrimaryColor;
+        colorBlock.highlightedColor = colors.AccentColor;
+        colorBlock.pressedColor = colors.SecondaryColor;
+        colorBlock.selectedColor = colors.AccentColor;
+        toggle.colors = colorBlock;
+        
+        // Apply text color if toggle has text
+        var text = toggle.GetComponentInChildren<TMPro.TMP_Text>();
+        if (text != null)
+        {
+            text.color = colors.TextColor;
+        }
+    }
+    
+    private void ApplyThemeToInputField(TMPro.TMP_InputField inputField, UIThemeColors colors)
+    {
+        if (inputField == null) return;
+        
+        var colorBlock = inputField.colors;
+        colorBlock.normalColor = colors.BackgroundColor;
+        colorBlock.highlightedColor = colors.AccentColor;
+        colorBlock.pressedColor = colors.SecondaryColor;
+        colorBlock.selectedColor = colors.AccentColor;
+        inputField.colors = colorBlock;
+        
+        // Apply text color
+        if (inputField.textComponent != null)
+        {
+            inputField.textComponent.color = colors.TextColor;
+        }
+        
+        // Apply placeholder text color
+        if (inputField.placeholder != null && inputField.placeholder is TMPro.TMP_Text placeholderText)
+        {
+            placeholderText.color = new Color(colors.TextColor.r, colors.TextColor.g, colors.TextColor.b, 0.5f);
+        }
+    }
+    
+    private void ApplyThemeToScrollbar(UnityEngine.UI.Scrollbar scrollbar, UIThemeColors colors)
+    {
+        if (scrollbar == null) return;
+        
+        var colorBlock = scrollbar.colors;
+        colorBlock.normalColor = colors.SliderHandleColor;
+        colorBlock.highlightedColor = colors.AccentColor;
+        colorBlock.pressedColor = colors.SecondaryColor;
+        colorBlock.selectedColor = colors.AccentColor;
+        scrollbar.colors = colorBlock;
+    }
+    
+    private void ApplyThemeToScrollRect(UnityEngine.UI.ScrollRect scrollRect, UIThemeColors colors)
+    {
+        if (scrollRect == null) return;
+        
+        // Apply theme to scroll rect's background if it has an Image component
+        var image = scrollRect.GetComponent<UnityEngine.UI.Image>();
+        if (image != null)
+        {
+            image.color = colors.BackgroundColor;
+        }
+        
+        // Apply theme to scrollbars
+        if (scrollRect.horizontalScrollbar != null)
+        {
+            ApplyThemeToScrollbar(scrollRect.horizontalScrollbar, colors);
+        }
+        if (scrollRect.verticalScrollbar != null)
+        {
+            ApplyThemeToScrollbar(scrollRect.verticalScrollbar, colors);
+        }
+    }
+    
+    private bool ApplyThemeToImage(UnityEngine.UI.Image image, UIThemeColors colors)
+    {
+        if (image == null) return false;
+        
+        // Skip images that are part of other UI controls (they'll be handled by their parent controls)
+        var button = image.GetComponent<UnityEngine.UI.Button>();
+        var slider = image.GetComponent<Slider>();
+        var dropdown = image.GetComponent<TMP_Dropdown>();
+        var toggle = image.GetComponent<Toggle>();
+        var scrollbar = image.GetComponent<UnityEngine.UI.Scrollbar>();
+        var inputField = image.GetComponent<TMPro.TMP_InputField>();
+        
+        if (button != null || slider != null || dropdown != null || toggle != null || scrollbar != null || inputField != null)
+        {
+            return false; // Skip - this image is part of another control
+        }
+        
+        // Check if this is a slider fill or handle
+        var sliderParent = image.GetComponentInParent<Slider>();
+        if (sliderParent != null)
+        {
+            // Check if this is the fill or handle
+            if (sliderParent.fillRect != null && sliderParent.fillRect.GetComponent<UnityEngine.UI.Image>() == image)
+            {
+                return false; // Skip - will be handled by slider theming
+            }
+            if (sliderParent.handleRect != null && sliderParent.handleRect.GetComponent<UnityEngine.UI.Image>() == image)
+            {
+                return false; // Skip - will be handled by slider theming
+            }
+        }
+        
+        // For standalone images (backgrounds, panels, decorations), apply background color
+        // But preserve alpha channel for transparency
+        Color newColor = colors.BackgroundColor;
+        newColor.a = image.color.a; // Keep original alpha
+        image.color = newColor;
+        return true;
+    }
+    
+    private bool ApplyThemeToText(TMPro.TMP_Text text, UIThemeColors colors)
+    {
+        if (text == null) return false;
+        
+        // Skip text that is part of other UI controls (they'll be handled by their parent controls)
+        var button = text.GetComponentInParent<UnityEngine.UI.Button>();
+        var dropdown = text.GetComponentInParent<TMP_Dropdown>();
+        var toggle = text.GetComponentInParent<Toggle>();
+        var inputField = text.GetComponentInParent<TMPro.TMP_InputField>();
+        
+        if (button != null || dropdown != null || toggle != null || inputField != null)
+        {
+            return false; // Skip - this text is part of another control
+        }
+        
+        // For standalone text elements (labels, titles, etc.), apply text color
+        text.color = colors.TextColor;
+        return true;
+    }
+    
+    // Apply theme to SpriteRenderer components - UPDATED
+    private bool ApplyThemeToSpriteRenderer(SpriteRenderer spriteRenderer, UIThemeColors colors)
+    {
+        if (spriteRenderer == null) return false;
+        
+        // Apply primary color to the sprite renderer
+        // This will tint the sprite with the theme color
+        spriteRenderer.color = colors.PrimaryColor;
+        
+        Debug.Log($"Applied theme color {colors.PrimaryColor} to SpriteRenderer on: {spriteRenderer.gameObject.name}");
+        return true;
+    }
+    
+    private void ApplyThemeToAdditionalObjects(UIThemeColors colors)
+    {
+        if (additionalThemeObjects == null) return;
+        
+        foreach (var obj in additionalThemeObjects)
+        {
+            if (obj == null) continue;
+            
+            // Apply theme to this object and all its children
+            ApplyThemeToAllUIElements(obj, colors);
+            
+            Debug.Log($"Applied theme to additional object: {obj.name}");
+        }
+    }
+    
+    // Runtime-only asset theming (non-destructive, updated)
+    private void ApplyRuntimeThemeToAssets(UIThemeColors colors)
+    {
+        if (string.IsNullOrEmpty(assetFolderPath))
+        {
+            Debug.LogWarning("Asset folder path is empty. Please specify a folder to theme.");
+            return;
+        }
+        
+        Debug.Log($"Applying runtime theme to assets in folder: {assetFolderPath}");
+        
+        // Find all materials in the scene and check if they're from the asset folder
+        Material[] allMaterials = Resources.FindObjectsOfTypeAll<Material>();
+        int themedMaterials = 0;
+        
+        foreach (Material mat in allMaterials)
+        {
+            if (mat != null && IsAssetFromFolder(mat, assetFolderPath))
+            {
+                ApplyRuntimeThemeToMaterial(mat, colors);
+                themedMaterials++;
+            }
+        }
+        
+        // Find all sprite renderers and UI Images using sprites from the folder
+        SpriteRenderer[] spriteRenderers = FindObjectsOfType<SpriteRenderer>();
+        UnityEngine.UI.Image[] images = FindObjectsOfType<UnityEngine.UI.Image>();
+        int themedSprites = 0;
+        
+        // FIXED: Updated to use PrimaryColor property instead of private field
+        foreach (SpriteRenderer sr in spriteRenderers)
+        {
+            if (sr.sprite != null && IsAssetFromFolder(sr.sprite, assetFolderPath))
+            {
+                // Apply theme color to sprite renderer
+                sr.color = colors.PrimaryColor;
+                themedSprites++;
+            }
+        }
+        
+        foreach (UnityEngine.UI.Image img in images)
+        {
+            if (img.sprite != null && IsAssetFromFolder(img.sprite, assetFolderPath))
+            {
+                // Apply theme color to UI image
+                img.color = colors.PrimaryColor;
+                themedSprites++;
+            }
+        }
+        
+        Debug.Log($"Runtime theme applied to {themedMaterials} materials and {themedSprites} sprites/images");
+    }
+    
+    private bool IsAssetFromFolder(UnityEngine.Object asset, string folderPath)
+    {
+        // For runtime, we'll use a simple name-based check
+        // You could expand this to be more sophisticated
+        return asset.name.Contains("UI") || asset.name.Contains("Button") || asset.name.Contains("Panel");
+    }
+    
+    private void ApplyRuntimeThemeToMaterial(Material material, UIThemeColors colors)
+    {
+        // Apply theme to material properties (non-destructive runtime changes)
+        if (material.HasProperty("_Color"))
+        {
+            material.color = colors.PrimaryColor;
+        }
+        if (material.HasProperty("_MainColor"))
+        {
+            material.SetColor("_MainColor", colors.PrimaryColor);
+        }
+        if (material.HasProperty("_TintColor"))
+        {
+            material.SetColor("_TintColor", colors.PrimaryColor);
+        }
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", colors.PrimaryColor);
+        }
+    }
+    
+    #if UNITY_EDITOR
+    private void ApplyThemeToAssetFolder(UIThemeColors colors)
+    {
+        if (string.IsNullOrEmpty(assetFolderPath))
+        {
+            Debug.LogWarning("Asset folder path is empty. Please specify a folder to theme.");
+            return;
+        }
+        
+        try
+        {
+            // Get all asset GUIDs in the folder
+            string[] searchFolders = { assetFolderPath };
+            string[] assetGUIDs = AssetDatabase.FindAssets("", searchFolders);
+            
+            int themedAssets = 0;
+            
+            foreach (string guid in assetGUIDs)
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                
+                // Skip if not including subfolders and asset is in a subfolder
+                if (!includeSubfolders && assetPath.Replace(assetFolderPath + "/", "").Contains("/"))
+                {
+                    continue;
+                }
+                
+                if (ApplyThemeToAsset(assetPath, colors))
+                {
+                    themedAssets++;
+                }
+            }
+            
+            if (themedAssets > 0)
+            {
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                Debug.Log($"Applied theme to {themedAssets} assets in folder: {assetFolderPath}");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error applying theme to asset folder: {e.Message}");
+        }
+    }
+    
+    private bool ApplyThemeToAsset(string assetPath, UIThemeColors colors)
+    {
+        System.Type assetType = AssetDatabase.GetMainAssetTypeAtPath(assetPath);
+        
+        if (assetType == typeof(Material))
+        {
+            return ApplyThemeToMaterial(assetPath, colors);
+        }
+        else if (assetType == typeof(Texture2D))
+        {
+            return ApplyThemeToTexture(assetPath, colors);
+        }
+        else if (assetType == typeof(Sprite))
+        {
+            return ApplyThemeToSprite(assetPath, colors);
+        }
+        else if (assetType == typeof(GameObject))
+        {
+            return ApplyThemeToPrefab(assetPath, colors);
+        }
+        
+        return false;
+    }
+    
+    private bool ApplyThemeToMaterial(string assetPath, UIThemeColors colors)
+    {
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+        if (material == null) return false;
+        
+        // Apply primary color to main color property
+        if (material.HasProperty("_Color"))
+        {
+            material.SetColor("_Color", colors.PrimaryColor);
+        }
+        
+        // Apply to common shader properties
+        if (material.HasProperty("_MainColor"))
+        {
+            material.SetColor("_MainColor", colors.PrimaryColor);
+        }
+        
+        if (material.HasProperty("_TintColor"))
+        {
+            material.SetColor("_TintColor", colors.PrimaryColor);
+        }
+        
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", colors.PrimaryColor);
+        }
+        
+        // For UI materials, apply UI-specific colors
+        if (material.shader.name.Contains("UI/"))
+        {
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", colors.PrimaryColor);
+            }
+        }
+        
+        EditorUtility.SetDirty(material);
+        return true;
+    }
+    
+    private bool ApplyThemeToTexture(string assetPath, UIThemeColors colors)
+    {
+        // Note: Modifying textures at runtime requires creating new texture instances
+        // This is more complex and might not be desired for all use cases
+        // For now, we'll skip texture modification but you can extend this
+        return false;
+    }
+    
+    private bool ApplyThemeToSprite(string assetPath, UIThemeColors colors)
+    {
+        // Sprites themselves can't be recolored, but we can modify their materials
+        // if they have custom materials assigned
+        Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+        if (sprite == null || sprite.associatedAlphaSplitTexture == null) return false;
+        
+        // Skip for now - sprite recoloring is typically done through Image components
+        return false;
+    }
+    
+    private bool ApplyThemeToPrefab(string assetPath, UIThemeColors colors)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+        if (prefab == null) return false;
+        
+        // Apply theme to all UI elements in the prefab
+        ApplyThemeToAllUIElements(prefab, colors);
+        
+        EditorUtility.SetDirty(prefab);
+        return true;
+    }
+    #endif
+    
+    private void SaveUIThemeToStorage()
+    {
+        PlayerPrefs.SetInt("CrosshairUITheme", (int)currentUITheme);
+        PlayerPrefs.Save();
+        Debug.Log($"UI Theme {currentUITheme} saved to storage");
+    }
+    
+    private void LoadUIThemeFromStorage()
+    {
+        if (PlayerPrefs.HasKey("CrosshairUITheme"))
+        {
+            currentUITheme = (UITheme)PlayerPrefs.GetInt("CrosshairUITheme");
+            if (uiThemeDropdown != null)
+            {
+                uiThemeDropdown.SetValueWithoutNotify((int)currentUITheme);
+            }
+            ApplyUITheme(currentUITheme);
+            Debug.Log($"UI Theme {currentUITheme} loaded from storage");
+        }
+        else
+        {
+            // Default to Coral theme
+            currentUITheme = UITheme.Coral;
+            ApplyUITheme(currentUITheme);
+            SaveUIThemeToStorage();
+        }
+    }
+    
+    private void SaveThemeCustomizationsToStorage()
+    {
+        // Save theme customizations for each theme
+        SaveThemeColorsToStorage("Coral", coralThemeColors);
+        SaveThemeColorsToStorage("Ember", emberThemeColors);
+        SaveThemeColorsToStorage("Gold", goldThemeColors);
+        SaveThemeColorsToStorage("Moss", mossThemeColors);
+        SaveThemeColorsToStorage("Tide", tideThemeColors);
+        SaveThemeColorsToStorage("Amethyst", amethystThemeColors);
+        SaveThemeColorsToStorage("Lotus", lotusThemeColors);
+        SaveThemeColorsToStorage("Shadow", shadowThemeColors);
+        SaveThemeColorsToStorage("Snow", snowThemeColors);
+        PlayerPrefs.Save();
+        Debug.Log("Theme customizations saved to storage");
+    }
+    
+    private void LoadThemeCustomizationsFromStorage()
+    {
+        // Load theme customizations for each theme
+        LoadThemeColorsFromStorage("Coral", coralThemeColors);
+        LoadThemeColorsFromStorage("Ember", emberThemeColors);
+        LoadThemeColorsFromStorage("Gold", goldThemeColors);
+        LoadThemeColorsFromStorage("Moss", mossThemeColors);
+        LoadThemeColorsFromStorage("Tide", tideThemeColors);
+        LoadThemeColorsFromStorage("Amethyst", amethystThemeColors);
+        LoadThemeColorsFromStorage("Lotus", lotusThemeColors);
+        LoadThemeColorsFromStorage("Shadow", shadowThemeColors);
+        LoadThemeColorsFromStorage("Snow", snowThemeColors);
+        Debug.Log("Theme customizations loaded from storage");
+    }
+    
+    private void SaveThemeColorsToStorage(string themeName, UIThemeColors colors)
+    {
+        string prefix = $"Theme_{themeName}_";
+        PlayerPrefs.SetInt(prefix + "UseCustomColors", colors.useCustomColors ? 1 : 0);
+        PlayerPrefs.SetInt(prefix + "IsMasterTheme", colors.isMasterTheme ? 1 : 0);
+        
+        // Save HSV values for all colors
+        PlayerPrefs.SetFloat(prefix + "PrimaryHue", colors.primaryHue);
+        PlayerPrefs.SetFloat(prefix + "PrimarySaturation", colors.primarySaturation);
+        PlayerPrefs.SetFloat(prefix + "PrimaryValue", colors.primaryValue);
+        
+        PlayerPrefs.SetFloat(prefix + "SecondaryHue", colors.secondaryHue);
+        PlayerPrefs.SetFloat(prefix + "SecondarySaturation", colors.secondarySaturation);
+        PlayerPrefs.SetFloat(prefix + "SecondaryValue", colors.secondaryValue);
+        
+        PlayerPrefs.SetFloat(prefix + "AccentHue", colors.accentHue);
+        PlayerPrefs.SetFloat(prefix + "AccentSaturation", colors.accentSaturation);
+        PlayerPrefs.SetFloat(prefix + "AccentValue", colors.accentValue);
+        
+        PlayerPrefs.SetFloat(prefix + "BackgroundHue", colors.backgroundHue);
+        PlayerPrefs.SetFloat(prefix + "BackgroundSaturation", colors.backgroundSaturation);
+        PlayerPrefs.SetFloat(prefix + "BackgroundValue", colors.backgroundValue);
+        
+        PlayerPrefs.SetFloat(prefix + "TextHue", colors.textHue);
+        PlayerPrefs.SetFloat(prefix + "TextSaturation", colors.textSaturation);
+        PlayerPrefs.SetFloat(prefix + "TextValue", colors.textValue);
+        
+        PlayerPrefs.SetFloat(prefix + "SliderFillHue", colors.sliderFillHue);
+        PlayerPrefs.SetFloat(prefix + "SliderFillSaturation", colors.sliderFillSaturation);
+        PlayerPrefs.SetFloat(prefix + "SliderFillValue", colors.sliderFillValue);
+        
+        PlayerPrefs.SetFloat(prefix + "SliderHandleHue", colors.sliderHandleHue);
+        PlayerPrefs.SetFloat(prefix + "SliderHandleSaturation", colors.sliderHandleSaturation);
+        PlayerPrefs.SetFloat(prefix + "SliderHandleValue", colors.sliderHandleValue);
+        
+        PlayerPrefs.SetFloat(prefix + "DropdownHue", colors.dropdownHue);
+        PlayerPrefs.SetFloat(prefix + "DropdownSaturation", colors.dropdownSaturation);
+        PlayerPrefs.SetFloat(prefix + "DropdownValue", colors.dropdownValue);
+    }
+    
+    private void LoadThemeColorsFromStorage(string themeName, UIThemeColors colors)
+    {
+        string prefix = $"Theme_{themeName}_";
+        
+        if (PlayerPrefs.HasKey(prefix + "UseCustomColors"))
+        {
+            colors.useCustomColors = PlayerPrefs.GetInt(prefix + "UseCustomColors") == 1;
+            colors.isMasterTheme = PlayerPrefs.GetInt(prefix + "IsMasterTheme") == 1;
+            
+            // Load HSV values for all colors
+            colors.primaryHue = PlayerPrefs.GetFloat(prefix + "PrimaryHue", colors.primaryHue);
+            colors.primarySaturation = PlayerPrefs.GetFloat(prefix + "PrimarySaturation", colors.primarySaturation);
+            colors.primaryValue = PlayerPrefs.GetFloat(prefix + "PrimaryValue", colors.primaryValue);
+            
+            colors.secondaryHue = PlayerPrefs.GetFloat(prefix + "SecondaryHue", colors.secondaryHue);
+            colors.secondarySaturation = PlayerPrefs.GetFloat(prefix + "SecondarySaturation", colors.secondarySaturation);
+            colors.secondaryValue = PlayerPrefs.GetFloat(prefix + "SecondaryValue", colors.secondaryValue);
+            
+            colors.accentHue = PlayerPrefs.GetFloat(prefix + "AccentHue", colors.accentHue);
+            colors.accentSaturation = PlayerPrefs.GetFloat(prefix + "AccentSaturation", colors.accentSaturation);
+            colors.accentValue = PlayerPrefs.GetFloat(prefix + "AccentValue", colors.accentValue);
+            
+            colors.backgroundHue = PlayerPrefs.GetFloat(prefix + "BackgroundHue", colors.backgroundHue);
+            colors.backgroundSaturation = PlayerPrefs.GetFloat(prefix + "BackgroundSaturation", colors.backgroundSaturation);
+            colors.backgroundValue = PlayerPrefs.GetFloat(prefix + "BackgroundValue", colors.backgroundValue);
+            
+            colors.textHue = PlayerPrefs.GetFloat(prefix + "TextHue", colors.textHue);
+            colors.textSaturation = PlayerPrefs.GetFloat(prefix + "TextSaturation", colors.textSaturation);
+            colors.textValue = PlayerPrefs.GetFloat(prefix + "TextValue", colors.textValue);
+            
+            colors.sliderFillHue = PlayerPrefs.GetFloat(prefix + "SliderFillHue", colors.sliderFillHue);
+            colors.sliderFillSaturation = PlayerPrefs.GetFloat(prefix + "SliderFillSaturation", colors.sliderFillSaturation);
+            colors.sliderFillValue = PlayerPrefs.GetFloat(prefix + "SliderFillValue", colors.sliderFillValue);
+            
+            colors.sliderHandleHue = PlayerPrefs.GetFloat(prefix + "SliderHandleHue", colors.sliderHandleHue);
+            colors.sliderHandleSaturation = PlayerPrefs.GetFloat(prefix + "SliderHandleSaturation", colors.sliderHandleSaturation);
+            colors.sliderHandleValue = PlayerPrefs.GetFloat(prefix + "SliderHandleValue", colors.sliderHandleValue);
+            
+            colors.dropdownHue = PlayerPrefs.GetFloat(prefix + "DropdownHue", colors.dropdownHue);
+            colors.dropdownSaturation = PlayerPrefs.GetFloat(prefix + "DropdownSaturation", colors.dropdownSaturation);
+            colors.dropdownValue = PlayerPrefs.GetFloat(prefix + "DropdownValue", colors.dropdownValue);
+            
+            // Generate the RGB colors from HSV values
+            colors.GenerateColorsFromHSV();
+        }
+    }
+
     // --- Preset System Methods ---
     private void SetupPresetSystem()
     {
@@ -2468,6 +3853,80 @@ private static class SystemInput
 
 
 }
+
+    private void LoadThemeHSVValues()
+    {
+        // Load HSV values for each theme from PlayerPrefs
+        LoadThemeHSVFromStorage("Coral", coralThemeColors);
+        LoadThemeHSVFromStorage("Ember", emberThemeColors);
+        LoadThemeHSVFromStorage("Gold", goldThemeColors);
+        LoadThemeHSVFromStorage("Moss", mossThemeColors);
+        LoadThemeHSVFromStorage("Tide", tideThemeColors);
+        LoadThemeHSVFromStorage("Amethyst", amethystThemeColors);
+        LoadThemeHSVFromStorage("Lotus", lotusThemeColors);
+        LoadThemeHSVFromStorage("Shadow", shadowThemeColors);
+        LoadThemeHSVFromStorage("Snow", snowThemeColors);
+    }
+    
+    private void LoadThemeHSVFromStorage(string themeName, UIThemeColors themeColors)
+    {
+        string prefix = $"ThemeHSV_{themeName}_";
+        
+        // Load HSV values if they exist
+        if (PlayerPrefs.HasKey(prefix + "Hue"))
+        {
+            themeColors.primaryHue = PlayerPrefs.GetFloat(prefix + "Hue", themeColors.primaryHue);
+            themeColors.primarySaturation = PlayerPrefs.GetFloat(prefix + "Saturation", themeColors.primarySaturation);
+            themeColors.primaryValue = PlayerPrefs.GetFloat(prefix + "Value", themeColors.primaryValue);
+            
+            // Apply the same HSV values to all color types
+            themeColors.secondaryHue = themeColors.primaryHue;
+            themeColors.secondarySaturation = themeColors.primarySaturation;
+            themeColors.secondaryValue = themeColors.primaryValue;
+            
+            themeColors.accentHue = themeColors.primaryHue;
+            themeColors.accentSaturation = themeColors.primarySaturation;
+            themeColors.accentValue = themeColors.primaryValue;
+            
+            themeColors.backgroundHue = themeColors.primaryHue;
+            themeColors.backgroundSaturation = themeColors.primarySaturation;
+            themeColors.backgroundValue = themeColors.primaryValue;
+            
+            themeColors.textHue = themeColors.primaryHue;
+            themeColors.textSaturation = themeColors.primarySaturation;
+            themeColors.textValue = themeColors.primaryValue;
+            
+            themeColors.sliderFillHue = themeColors.primaryHue;
+            themeColors.sliderFillSaturation = themeColors.primarySaturation;
+            themeColors.sliderFillValue = themeColors.primaryValue;
+            
+            themeColors.sliderHandleHue = themeColors.primaryHue;
+            themeColors.sliderHandleSaturation = themeColors.primarySaturation;
+            themeColors.sliderHandleValue = themeColors.primaryValue;
+            
+            themeColors.dropdownHue = themeColors.primaryHue;
+            themeColors.dropdownSaturation = themeColors.primarySaturation;
+            themeColors.dropdownValue = themeColors.primaryValue;
+            
+            // Mark as custom colors
+            themeColors.useCustomColors = true;
+            
+            // Generate RGB colors from HSV
+            themeColors.GenerateColorsFromHSV();
+        }
+    }
+    
+    private void SaveThemeHSVToStorage(string themeName, UIThemeColors themeColors)
+    {
+        string prefix = $"ThemeHSV_{themeName}_";
+        
+        // Save HSV values to PlayerPrefs
+        PlayerPrefs.SetFloat(prefix + "Hue", themeColors.primaryHue);
+        PlayerPrefs.SetFloat(prefix + "Saturation", themeColors.primarySaturation);
+        PlayerPrefs.SetFloat(prefix + "Value", themeColors.primaryValue);
+        
+        PlayerPrefs.Save();
+    }
 
 }
 
