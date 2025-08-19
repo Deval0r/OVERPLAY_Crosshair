@@ -12,6 +12,7 @@ public class AudioManager : MonoBehaviour
     [Header("Audio Settings")]
     [SerializeField] private float volume = 0.5f;
     [SerializeField] private bool enableSounds = true;
+    [SerializeField] private float pitchVariation = 0.07f;
     
     private AudioSource audioSource;
     
@@ -38,36 +39,40 @@ public class AudioManager : MonoBehaviour
             sliderReleaseSound = ToneGenerator.GenerateSliderReleaseSound();
     }
     
+    private void PlaySoundWithRandomPitch(AudioClip clip, float volumeMultiplier = 1.0f)
+    {
+        if (enableSounds && clip != null)
+        {
+            // Set random pitch variation
+            float randomPitch = 1.0f + Random.Range(-pitchVariation, pitchVariation);
+            audioSource.pitch = randomPitch;
+            
+            // Play the sound
+            audioSource.PlayOneShot(clip, volume * volumeMultiplier);
+            
+            // Reset pitch back to normal
+            audioSource.pitch = 1.0f;
+        }
+    }
+    
     public void PlayButtonClick()
     {
-        if (enableSounds && buttonClickSound != null)
-        {
-            audioSource.PlayOneShot(buttonClickSound, volume);
-        }
+        PlaySoundWithRandomPitch(buttonClickSound, 1.0f);
     }
     
     public void PlayButtonRelease()
     {
-        if (enableSounds && buttonReleaseSound != null)
-        {
-            audioSource.PlayOneShot(buttonReleaseSound, volume);
-        }
+        PlaySoundWithRandomPitch(buttonReleaseSound, 1.0f);
     }
     
     public void PlaySliderChange()
     {
-        if (enableSounds && sliderChangeSound != null)
-        {
-            audioSource.PlayOneShot(sliderChangeSound, volume * 0.3f); // Quieter for slider changes
-        }
+        PlaySoundWithRandomPitch(sliderChangeSound, 0.3f); // Quieter for slider changes
     }
     
     public void PlaySliderRelease()
     {
-        if (enableSounds && sliderReleaseSound != null)
-        {
-            audioSource.PlayOneShot(sliderReleaseSound, volume * 0.5f);
-        }
+        PlaySoundWithRandomPitch(sliderReleaseSound, 0.5f);
     }
     
     public void SetVolume(float newVolume)
