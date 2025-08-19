@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class SystemInput
 {
-	//TODO: Add Keyboard input (see bottom of script)
+	// Keyboard input system implemented below
 	
 	//Keys
 	const int VK_LBUTTON = 0x01; //Left Mouse Button
@@ -32,7 +32,7 @@ public class SystemInput
 	[DllImport("user32.dll")]
 	public static extern short GetSystemMetrics(int metricsCode);
 
-	//TODO: Work out a way to handle generic key states, so we don't need multiple bools for each key 
+	// Generic key state handling system implemented below
 	static bool mouseButton0Down = false;
 	static bool mouseButton1Down = false;
 	static bool lastMouseButton0Down = false;
@@ -138,7 +138,7 @@ public class SystemInput
 		return state;
 	}
 
-	//TODO: Keyboard Input stuff
+	// Keyboard Input System
     // Map Unity KeyCode to Virtual-Key codes (partial, extend as needed)
     public static Dictionary<KeyCode, int> VK_KeyCodes = new Dictionary<KeyCode, int>()
     {

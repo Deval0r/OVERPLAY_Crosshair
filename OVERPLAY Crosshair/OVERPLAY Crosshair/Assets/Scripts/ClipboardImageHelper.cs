@@ -24,7 +24,7 @@ public static class ClipboardImageHelper
         }
         catch (Exception ex)
         {
-            Debug.LogWarning("Failed to copy image to clipboard: " + ex.Message);
+            // Silently fail clipboard operations
         }
     }
 }

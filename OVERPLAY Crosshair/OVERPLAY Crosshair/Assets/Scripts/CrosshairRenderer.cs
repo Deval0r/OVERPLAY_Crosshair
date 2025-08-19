@@ -269,14 +269,11 @@ public class CrosshairRenderer : Graphic
     new void Awake()
     {      
         // Enable running in background - CRITICAL for overlay functionality
-    UnityEngine.Application.runInBackground = true;
+        UnityEngine.Application.runInBackground = true;
     
-    // Prevent the application from pausing when losing focus
-    Time.timeScale = 1f;
+        // Prevent the application from pausing when losing focus
+        Time.timeScale = 1f;
     
-    // Your existing Awake code...
-    frameShape = CrosshairShape.Circle;
-    frameFilled = false;
         // --- Frame ---
         frameShape = CrosshairShape.Circle;
         frameFilled = false;
@@ -983,8 +980,7 @@ public class CrosshairRenderer : Graphic
     UnityEngine.Application.runInBackground = true;
     Time.timeScale = 1f;
     
-    // Log focus state for debugging
-    Debug.Log($"Application focus changed: {hasFocus}");
+
 }
 
 private void OnApplicationPause(bool pauseStatus)
@@ -1013,7 +1009,7 @@ private void OnDestroy()
     {
         if (isLoadingPreset || isSavingPreset) return;
         
-        Debug.Log($"OnPresetChanged called: {currentPresetIndex} → {newIndex}");
+
         
         // Only save if we're actually changing presets and enough time has passed
         if (newIndex != currentPresetIndex && (Time.unscaledTime - lastPresetSaveTime) > 0.1f)
@@ -1024,7 +1020,7 @@ private void OnDestroy()
         
         currentPresetIndex = newIndex;
         LoadCrosshairFromCode(presets[currentPresetIndex]);
-        Debug.Log($"Manual switch to Preset {newIndex + 1}");
+
     }
     
     private void SaveCurrentPresetSafely()
@@ -1039,7 +1035,7 @@ private void OnDestroy()
             // Generate code from internal state, not UI state
             presets[currentPresetIndex] = GenerateCrosshairCodeFromState();
             SavePresetToStorage(currentPresetIndex);
-            Debug.Log($"Safely saved preset {currentPresetIndex + 1}");
+
         }
         finally
         {
@@ -1063,13 +1059,13 @@ private void OnDestroy()
                 if (switchingToSamePreset)
                 {
                     // Switching to SAME preset = Save current edits, then reload
-                    Debug.Log($"Keybind refresh: Preset {presetIndex + 1} (saving current edits)");
+
                     SaveCurrentPresetSafely();
                 }
                 else
                 {
                     // Switching to DIFFERENT preset = Discard edits, clean switch
-                    Debug.Log($"Keybind switch: {currentPresetIndex + 1} → {presetIndex + 1} (discarding unsaved changes)");
+
                 }
                 
                 currentPresetIndex = presetIndex;
@@ -1084,11 +1080,11 @@ private void OnDestroy()
                 
                 if (switchingToSamePreset)
                 {
-                    Debug.Log($"Preset {presetIndex + 1} refreshed with saved changes");
+    
                 }
                 else
                 {
-                    Debug.Log($"Switched to Preset {presetIndex + 1} (unsaved changes discarded)");
+    
                 }
             }
             finally
@@ -1560,7 +1556,7 @@ private void OnDestroy()
         // Save preset keybinds
         SavePresetKeybindsToStorage();
         
-        Debug.Log("All presets and keybinds saved before application quit");
+
     }
 
     // --- Preset System Methods ---
@@ -1585,7 +1581,7 @@ private void OnDestroy()
         
         // Load the first preset automatically
         LoadCrosshairFromCode(presets[currentPresetIndex]);
-        Debug.Log($"Loaded Preset {currentPresetIndex + 1} on startup");
+
     }
 
     private void LoadPresetsFromStorage()
@@ -1596,13 +1592,13 @@ private void OnDestroy()
             if (PlayerPrefs.HasKey(key))
             {
                 presets[i] = PlayerPrefs.GetString(key);
-                Debug.Log($"Loaded Preset {i + 1} from storage");
+
             }
             else
             {
                 presets[i] = GenerateCrosshairCode();
                 PlayerPrefs.SetString(key, presets[i]);
-                Debug.Log($"Initialized Preset {i + 1} with defaults");
+
             }
         }
         PlayerPrefs.Save();
@@ -1613,7 +1609,7 @@ private void OnDestroy()
         string key = $"CrosshairPreset_{presetIndex}";
         PlayerPrefs.SetString(key, presets[presetIndex]);
         PlayerPrefs.Save();
-        Debug.Log($"Saved Preset {presetIndex + 1} to storage");
+
     }
 
     private string GenerateCrosshairCode()
@@ -2002,7 +1998,7 @@ private void OnDestroy()
         
         // Copy to clipboard
         GUIUtility.systemCopyBuffer = presets[currentPresetIndex];
-        Debug.Log($"Preset {currentPresetIndex + 1} saved and copied to clipboard: {presets[currentPresetIndex]}");
+
     }
 
     public void GenerateAndOpenImage()
@@ -2045,16 +2041,15 @@ private void OnDestroy()
             string codePath = Path.Combine(desktop, codeName);
             File.WriteAllBytes(imagePath, pngData);
             File.WriteAllText(codePath, code);
-            Debug.Log($"Crosshair screenshot saved to: {imagePath}");
-            Debug.Log($"Crosshair code saved to: {codePath}");
+            
             try
             {
                 System.Diagnostics.Process.Start(imagePath);
-                Debug.Log($"Opened screenshot with default application: {imagePath}");
+
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"Failed to open screenshot: {e.Message}");
+
             }
         }
         Destroy(screenshot);
@@ -2173,11 +2168,11 @@ try
                                 presets[currentPresetIndex] = loadedCode;
                                 SavePresetToStorage(currentPresetIndex);
                                 LoadCrosshairFromCode(loadedCode);
-                                Debug.Log($"Preset {currentPresetIndex + 1} loaded from image file: {fileName}");
+                        
                                 return;
                             }
                         }
-                        Debug.LogWarning($"No code file found for image: {fileName}");
+
                         return;
                     }
                 }
@@ -2185,14 +2180,14 @@ try
 }
 catch (System.Exception e)
 {
-    Debug.LogWarning($"Clipboard file check failed: {e.Message}");
+    
 }
 #endif
         // Fallback: use text clipboard
         string code = GUIUtility.systemCopyBuffer;
         if (string.IsNullOrEmpty(code))
         {
-            Debug.LogWarning("No code in clipboard to load");
+
             return;
         }
         // Check if clipboard is an image filename like Crosshair_{hash}.png (for text clipboard fallback)
@@ -2209,18 +2204,18 @@ catch (System.Exception e)
                     presets[currentPresetIndex] = loadedCode;
                     SavePresetToStorage(currentPresetIndex);
                     LoadCrosshairFromCode(loadedCode);
-                    Debug.Log($"Preset {currentPresetIndex + 1} loaded from image filename: {code}");
+            
                     return;
                 }
             }
-            Debug.LogWarning($"No code file found for image: {code}");
+            
             return;
         }
         // Otherwise, treat as regular code
         presets[currentPresetIndex] = code;
         SavePresetToStorage(currentPresetIndex);
         LoadCrosshairFromCode(code);
-        Debug.Log($"Preset {currentPresetIndex + 1} loaded from clipboard: {code}");
+
     }
 
     public void ClearToDefaults()
@@ -2264,7 +2259,7 @@ catch (System.Exception e)
         UpdateUIFromValues();
         SetVerticesDirty();
         
-        Debug.Log("Crosshair reset to defaults");
+
     }
 
     private string FrameShapeToCode(CrosshairShape shape)
@@ -2350,7 +2345,7 @@ catch (System.Exception e)
         // Save to storage
         SavePresetKeybindsToStorage();
         
-        Debug.Log("All preset keybinds cleared");
+
     }
 
     // SystemInput class for handling input when Unity is not focused
@@ -2416,18 +2411,14 @@ private static class SystemInput
                 short keyState = GetAsyncKeyState(vKey);
                 bool isPressed = (keyState & 0x8000) != 0;
                 
-                // Debug logging for troubleshooting
-                if (isPressed && keyCode == KeyCode.F2)
-                {
-                    UnityEngine.Debug.Log($"SystemInput detected {keyCode} press (unfocused)");
-                }
+
                 
                 return isPressed;
             }
         }
         catch (System.Exception e)
         {
-            UnityEngine.Debug.LogWarning($"SystemInput.GetKey failed for {keyCode}: {e.Message}");
+
         }
         return false;
     }
@@ -2450,7 +2441,7 @@ private static class SystemInput
         }
         catch (System.Exception e)
         {
-            UnityEngine.Debug.LogWarning($"SystemInput.GetMouseButton failed for button {button}: {e.Message}");
+
             return false;
         }
     }

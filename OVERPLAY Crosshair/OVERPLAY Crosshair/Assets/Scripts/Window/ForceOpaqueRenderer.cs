@@ -13,7 +13,7 @@ public class ForceOpaqueRenderer : MonoBehaviour
     public bool applyToChildren = true;
     
     [Tooltip("How often to check and fix the color (in seconds, 0 = every frame)")]
-    public float checkInterval = 0.1f;
+    public float checkInterval = 1.0f; // Increased to reduce performance impact
     
     private SpriteRenderer[] spriteRenderers;
     private Color[] originalColors;

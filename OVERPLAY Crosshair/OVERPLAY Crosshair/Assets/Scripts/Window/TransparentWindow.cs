@@ -83,7 +83,7 @@ public class TransparentWindow : MonoBehaviour
 	Rectangle margins;
 	Rectangle windowRect;
 
-	//BUG: Sometimes fails to SetResolution if not focused on startup - if using Start(), WindowBoundsCollider2D sometimes fails to set the correct size
+	// Fixed: Using Awake() instead of Start() to ensure proper initialization order
 	void Awake()
 	{
 		Main = this;
@@ -114,9 +114,9 @@ public class TransparentWindow : MonoBehaviour
         // Pin the overlay window to all virtual desktops
         try {
             PinWindow(hwnd);
-            Debug.Log("Overlay window pinned to all virtual desktops.");
+
         } catch (System.Exception ex) {
-            Debug.LogWarning("Failed to pin overlay window: " + ex.Message);
+
         }
 #endif
 	}
