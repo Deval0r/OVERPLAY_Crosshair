@@ -19,7 +19,7 @@ public class ForceOpaqueRenderer : MonoBehaviour
     private Color[] originalColors;
     private float lastCheckTime;
     
-    void Start()
+    void Awake()
     {
         // Get all sprite renderers
         if (applyToChildren)
@@ -41,7 +41,13 @@ public class ForceOpaqueRenderer : MonoBehaviour
             }
         }
         
-        // Force initial opaque state
+        // Force initial opaque state immediately
+        ForceOpaqueState();
+    }
+    
+    void Start()
+    {
+        // Additional check in Start to ensure everything is properly set
         ForceOpaqueState();
     }
     
