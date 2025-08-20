@@ -15,7 +15,7 @@ public class UIDissolveEffect : MonoBehaviour
     [Header("Sound Settings")]
     [SerializeField] private AudioClip uiOpenSound;
     [SerializeField] private AudioClip uiCloseSound;
-    [SerializeField] private float soundVolume = 1.0f;
+    [Range(0f, 1f)] [SerializeField] private float soundVolume = 1.0f;
     
     [Header("References")]
     [SerializeField] private Shader dissolveShader;
@@ -179,6 +179,28 @@ public class UIDissolveEffect : MonoBehaviour
         {
             Debug.LogWarning("UIDissolveEffect: No dissolve material created. Make sure the shader 'Custom/UIDissolveShader' is available.");
         }
+        
+        Debug.Log($"UIDissolveEffect: Initial sound volume set to: {soundVolume}");
+    }
+    
+    private void PlayUIOpenSound()
+    {
+        if (uiOpenSound != null)
+        {
+            float currentVolume = Mathf.Clamp01(soundVolume);
+            AudioSource.PlayClipAtPoint(uiOpenSound, Camera.main.transform.position, currentVolume);
+            Debug.Log($"UIDissolveEffect: Played UI open sound. Volume: {currentVolume}");
+        }
+    }
+    
+    private void PlayUICloseSound()
+    {
+        if (uiCloseSound != null)
+        {
+            float currentVolume = Mathf.Clamp01(soundVolume);
+            AudioSource.PlayClipAtPoint(uiCloseSound, Camera.main.transform.position, currentVolume);
+            Debug.Log($"UIDissolveEffect: Played UI close sound. Volume: {currentVolume}");
+        }
     }
     
     public void DissolveIn()
@@ -219,24 +241,6 @@ public class UIDissolveEffect : MonoBehaviour
         else
         {
             Debug.LogWarning($"UIDissolveEffect: Cannot start DissolveOut - isDissolving: {isDissolving}, coroutineRunner: {coroutineRunner != null}");
-        }
-    }
-    
-    private void PlayUIOpenSound()
-    {
-        if (uiOpenSound != null)
-        {
-            AudioSource.PlayClipAtPoint(uiOpenSound, Camera.main.transform.position, soundVolume);
-            Debug.Log("UIDissolveEffect: Played UI open sound");
-        }
-    }
-    
-    private void PlayUICloseSound()
-    {
-        if (uiCloseSound != null)
-        {
-            AudioSource.PlayClipAtPoint(uiCloseSound, Camera.main.transform.position, soundVolume);
-            Debug.Log("UIDissolveEffect: Played UI close sound");
         }
     }
     
@@ -575,6 +579,12 @@ public class UIDissolveEffect : MonoBehaviour
     public void SetSoundVolume(float volume)
     {
         soundVolume = Mathf.Clamp01(volume);
+        Debug.Log($"UIDissolveEffect: Sound volume set to: {soundVolume}");
+    }
+    
+    public float GetSoundVolume()
+    {
+        return soundVolume;
     }
 }
 
