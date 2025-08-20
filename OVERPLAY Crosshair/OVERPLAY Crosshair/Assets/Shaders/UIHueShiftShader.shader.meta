@@ -7,3 +7,37 @@ ShaderImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+  shaderIncludePaths: []
+  preprocessorOverride: 0
+  openGLRenderFlags: 0
+  skipUnusedVariants: 0
+  ignoreProjector: 0
+  generateSurfaceShader: 0
+  generateUnusedCode: 0
+  applyToAllSerializedMaterials: 0
+  allowUnusedCode: 0
+  strictMode: 0
+  keepVariants: 0
+  stripUnusedVariants: 0
+  lightmap: 0
+  fog: 0
+  instancing: 0
+  hardwares: 
+  shaderModel: 30
+  fileExtensions: []
+  disabledPlatforms: []
+  shaderRequirements: 
+  additionalInternalShaderData: 
+  allowUnusedCode: 0
+  strictMode: 0
+  keepVariants: 0
+  stripUnusedVariants: 0
+  lightmap: 0
+  fog: 0
+  instancing: 0
+  hardwares: 
+  shaderModel: 30
+  fileExtensions: []
+  disabledPlatforms: []
+  shaderRequirements: 
+  additionalInternalShaderData: 
