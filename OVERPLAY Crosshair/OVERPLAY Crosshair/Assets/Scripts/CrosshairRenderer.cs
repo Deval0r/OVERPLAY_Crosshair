@@ -168,6 +168,17 @@ public class CrosshairRenderer : Graphic
     private Texture2D hairSaturationTexture;
     private Texture2D dotSaturationTexture;
 
+    // FIXED: Add debounce mechanism to prevent excessive vertex updates that cause brightness flickering
+    private float lastVertexUpdateTime = 0f;
+    private float vertexUpdateDebounce = 0.016f; // ~60fps, prevents excessive updates
+    private bool verticesNeedUpdate = false;
+
+    // FIXED: Helper method to queue vertex updates instead of calling SetVerticesDirty() directly
+    private void QueueVertexUpdate()
+    {
+        verticesNeedUpdate = true;
+    }
+
     private enum SpecialKey
     {
         None,
@@ -337,19 +348,19 @@ public class CrosshairRenderer : Graphic
         // --- Frame UI ---
         if (frameShapeDropdown) frameShapeDropdown.onValueChanged.AddListener(val => { 
             if (isLoadingPreset) return;
-            frameShape = (CrosshairShape)val; SetVerticesDirty(); 
+            frameShape = (CrosshairShape)val; QueueVertexUpdate(); 
         });
         if (frameFilledToggle) frameFilledToggle.onValueChanged.AddListener(val => { 
             if (isLoadingPreset) return;
-            frameFilled = val; SetVerticesDirty(); 
+            frameFilled = val; QueueVertexUpdate(); 
         });
         if (frameOpacitySlider) frameOpacitySlider.onValueChanged.AddListener(val => { 
             if (isLoadingPreset || isUpdatingUI) return;
-            frameOpacity = val; SetVerticesDirty(); 
+            frameOpacity = val; QueueVertexUpdate(); 
         });
         if (frameScaleSlider) frameScaleSlider.onValueChanged.AddListener(val => { 
             if (isLoadingPreset || isUpdatingUI) return;
-            frameScale = val; SetVerticesDirty(); 
+            frameScale = val; QueueVertexUpdate(); 
         });
         if (frameRotationSlider) frameRotationSlider.onValueChanged.AddListener(val => {
             if (isLoadingPreset) return;
@@ -375,7 +386,7 @@ public class CrosshairRenderer : Graphic
                 if (isLoadingPreset) return;
                 frameHue = val;
                 frameColor = Color.HSVToRGB(frameHue, frameSaturation, frameValue);
-                SetVerticesDirty();
+                QueueVertexUpdate();
                 ShowColorPreview(frameColorPreviewObj, frameColorPreviewRenderer, frameColor, PreviewType.Frame);
                 UpdateSaturationReferenceColor(frameSaturationRefRenderer, frameHue);
             });
@@ -686,6 +697,14 @@ public class CrosshairRenderer : Graphic
         if (!UnityEngine.Application.runInBackground)
         UnityEngine.Application.runInBackground = true;
 
+        // FIXED: Handle debounced vertex updates to prevent brightness flickering
+        if (verticesNeedUpdate && Time.time - lastVertexUpdateTime >= vertexUpdateDebounce)
+        {
+            SetVerticesDirty();
+            verticesNeedUpdate = false;
+            lastVertexUpdateTime = Time.time;
+        }
+
         if (recordingKeybind)
         {
             // Check all possible KeyCodes
@@ -929,8 +948,47 @@ public class CrosshairRenderer : Graphic
     void ToggleUI()
     {
         uiVisible = !uiVisible;
-        if (uiRoot) uiRoot.SetActive(uiVisible);
+        
+        // Use shader-based dissolve effect (now handles its own sounds)
+        if (uiRoot != null)
+        {
+            UIDissolveEffect dissolveEffect = uiRoot.GetComponent<UIDissolveEffect>();
+            if (dissolveEffect != null)
+            {
+                if (uiVisible)
+                {
+                    dissolveEffect.DissolveIn();
+                }
+                else
+                {
+                    dissolveEffect.DissolveOut();
+                }
+            }
+            else
+            {
+                // Fallback to simple show/hide if no dissolve effect component
+                // Also play sounds via AudioManager as fallback
+                if (AudioManager.Instance != null)
+                {
+                    if (uiVisible)
+                    {
+                        AudioManager.Instance.PlayUIOpen();
+                    }
+                    else
+                    {
+                        AudioManager.Instance.PlayUIClose();
+                    }
+                }
+                uiRoot.SetActive(uiVisible);
+            }
+        }
     }
+    
+
+    
+
+    
+
 
     string KeybindToString(List<KeybindEntry> keys)
     {

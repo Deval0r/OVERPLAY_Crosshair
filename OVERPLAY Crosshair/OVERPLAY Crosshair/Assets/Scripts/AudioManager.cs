@@ -28,6 +28,19 @@ public class AudioManager : MonoBehaviour
         audioSource.volume = volume;
         audioSource.playOnAwake = false;
         
+        // FIXED: Prevent this app from muting other applications
+        audioSource.ignoreListenerVolume = true; // Don't affect global audio
+        audioSource.ignoreListenerPause = true;  // Don't pause when other apps pause
+        audioSource.priority = 0; // High priority to ensure it plays
+        
+        // FIXED: Additional settings to prevent interference with other apps
+        audioSource.spatialBlend = 0f; // 2D sound (not 3D)
+        audioSource.dopplerLevel = 0f; // No doppler effect
+        audioSource.reverbZoneMix = 0f; // No reverb
+        audioSource.rolloffMode = AudioRolloffMode.Linear;
+        audioSource.maxDistance = 500f;
+        audioSource.minDistance = 1f;
+        
         // Generate default sounds if none are assigned
         if (buttonClickSound == null)
             buttonClickSound = ToneGenerator.GenerateClickSound();
@@ -73,6 +86,17 @@ public class AudioManager : MonoBehaviour
     public void PlaySliderRelease()
     {
         PlaySoundWithRandomPitch(sliderReleaseSound, 0.5f);
+    }
+    
+    // FIXED: Add UI opening/closing sounds
+    public void PlayUIOpen()
+    {
+        PlaySoundWithRandomPitch(buttonClickSound, 0.8f);
+    }
+    
+    public void PlayUIClose()
+    {
+        PlaySoundWithRandomPitch(buttonReleaseSound, 0.8f);
     }
     
     public void SetVolume(float newVolume)

@@ -89,14 +89,16 @@ public class TransparentWindow : MonoBehaviour
 		Main = this;
 
 		Camera = GetComponent<Camera>();
-		Camera.backgroundColor = new Color();
+		// FIXED: Set background color to transparent instead of black to prevent brightness flickering
+		Camera.backgroundColor = new Color(0, 0, 0, 0);
 		Camera.clearFlags = CameraClearFlags.SolidColor;
 
 		// Always match the current screen resolution, and add a small buffer to cover edges
 		screenResolution = new Vector2Int(Screen.currentResolution.width + 2, Screen.currentResolution.height + 2);
 		Screen.SetResolution(screenResolution.x, screenResolution.y, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
 
-		Application.targetFrameRate = targetFrameRate;
+		// FIXED: Remove conflicting frame rate setting that was causing brightness flickering
+		// Application.targetFrameRate = targetFrameRate; // REMOVED: This conflicts with CrosshairRenderer's setting
 		Application.runInBackground = true;
 
 #if !UNITY_EDITOR
@@ -140,13 +142,42 @@ public class TransparentWindow : MonoBehaviour
         {
             SystemInput.LateUpdateKeys();
         }
+	}
 
-		// Dynamically update overlay size if screen resolution changes
-		Vector2Int targetRes = new Vector2Int(Screen.currentResolution.width + 2, Screen.currentResolution.height + 2);
-		if (screenResolution != targetRes)
+	// FIXED: Add coroutine to debounce resolution changes
+	private System.Collections.IEnumerator UpdateResolutionWithDelay(Vector2Int newResolution)
+	{
+		// Wait a short time to see if resolution stabilizes
+		yield return new WaitForSeconds(0.5f); // FIXED: Increased delay to prevent rapid changes
+		
+		// Check if resolution is still different after the delay
+		Vector2Int currentTargetRes = new Vector2Int(Screen.currentResolution.width + 2, Screen.currentResolution.height + 2);
+		if (currentTargetRes == newResolution && screenResolution != newResolution)
 		{
-			screenResolution = targetRes;
+			screenResolution = newResolution;
 			Screen.SetResolution(screenResolution.x, screenResolution.y, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+		}
+	}
+
+	// FIXED: Ensure camera background color stays transparent to prevent brightness flickering
+	void LateUpdate()
+	{
+		// Ensure camera background color remains transparent
+		if (Camera != null && Camera.backgroundColor.a != 0f)
+		{
+			Camera.backgroundColor = new Color(0, 0, 0, 0);
+		}
+		
+		// FIXED: Prevent frequent resolution checks that cause brightness flickering
+		// Only check resolution changes every few frames instead of every frame
+		if (Time.frameCount % 30 == 0) // Check every 30 frames (~0.5 seconds at 60fps)
+		{
+			Vector2Int targetRes = new Vector2Int(Screen.currentResolution.width + 2, Screen.currentResolution.height + 2);
+			if (screenResolution != targetRes)
+			{
+				// Add a small delay to prevent rapid resolution changes
+				StartCoroutine(UpdateResolutionWithDelay(targetRes));
+			}
 		}
 	}
 

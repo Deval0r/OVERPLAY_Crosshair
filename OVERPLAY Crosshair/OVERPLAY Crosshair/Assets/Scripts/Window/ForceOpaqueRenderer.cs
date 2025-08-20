@@ -13,7 +13,7 @@ public class ForceOpaqueRenderer : MonoBehaviour
     public bool applyToChildren = true;
     
     [Tooltip("How often to check and fix the color (in seconds, 0 = every frame)")]
-    public float checkInterval = 1.0f; // Increased to reduce performance impact
+    public float checkInterval = 2.0f; // FIXED: Increased from 1.0f to 2.0f to reduce performance impact and prevent brightness flickering
     
     private SpriteRenderer[] spriteRenderers;
     private Color[] originalColors;
@@ -55,7 +55,8 @@ public class ForceOpaqueRenderer : MonoBehaviour
     {
         if (!forceOpaque) return;
         
-        // Check at intervals to avoid performance issues
+        // FIXED: Increase check interval to reduce performance impact and prevent brightness flickering
+        // Check at intervals to avoid performance issues and reduce visual artifacts
         if (Time.time - lastCheckTime >= checkInterval)
         {
             ForceOpaqueState();
@@ -71,15 +72,18 @@ public class ForceOpaqueRenderer : MonoBehaviour
             {
                 Color currentColor = spriteRenderers[i].color;
                 
-                // Force alpha to 1.0 (fully opaque)
-                if (currentColor.a != 1.0f)
+                // FIXED: Only update if alpha is not already 1.0 to prevent unnecessary color changes
+                // Force alpha to 1.0 (fully opaque) only if it's not already set
+                if (Mathf.Abs(currentColor.a - 1.0f) > 0.001f)
                 {
                     currentColor.a = 1.0f;
                     spriteRenderers[i].color = currentColor;
                 }
                 
+                // FIXED: Only reset material if it's actually using a particle shader
                 // Ensure the material is using the default sprite material
                 if (spriteRenderers[i].material != null && 
+                    spriteRenderers[i].material.shader != null &&
                     spriteRenderers[i].material.shader.name.Contains("Particles"))
                 {
                     // Reset to default sprite material if it's using a particle shader
