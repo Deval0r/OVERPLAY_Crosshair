@@ -35,18 +35,25 @@ public class UIHoverController : MonoBehaviour
     [SerializeField] private float slideDuration = 0.3f;
     [SerializeField] private AnimationCurve slideCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     
-    private UIRoot activeRoot = null;
-    private UIRoot targetRoot = null;
-    private Vector2 startPosition;
-    private Vector2 targetPosition;
-    private float animationTimer = 0f;
+    // Main UI state
+    private UIRoot activeMainRoot = null;
+    private UIRoot targetMainRoot = null;
+    private Vector2 mainStartPos;
+    private Vector2 mainTargetPos;
+    private float mainAnimTimer = 0f;
+    private bool isMainAnimating = false;
     private bool isHoveringMain = false;
+    
+    // Settings state
+    private UIRoot activeSettingsRoot = null;
+    private UIRoot targetSettingsRoot = null;
+    private Vector2 settingsStartPos;
+    private Vector2 settingsTargetPos;
+    private float settingsAnimTimer = 0f;
+    private bool isSettingsAnimating = false;
     private bool isHoveringSettings = false;
-    private bool wasHoveringMain = false;
-    private bool wasHoveringSettings = false;
+    
     private Camera uiCamera;
-    private Vector2 startPosition;
-    private Vector2 targetPosition;
 
     private void Start()
     {
@@ -80,6 +87,59 @@ public class UIHoverController : MonoBehaviour
         Debug.Log("UIHoverController initialized with manual hitboxes");
     }
 
+    // Queues for each UI section
+    private bool pendingMainHide = false;
+    private UIRoot pendingMainRoot = null;
+    private bool pendingSettingsHide = false;
+    private UIRoot pendingSettingsRoot = null;
+    
+    private void Update()
+    {
+        if (!Input.mousePresent) return;
+        
+        // Convert mouse position to canvas space
+        Vector2 localPoint;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvas.GetComponent<RectTransform>(),
+            Input.mousePosition,
+            uiCamera,
+            out localPoint
+        );
+        
+        // Check if mouse is over either hitbox
+        bool wasHoveringMain = isHoveringMain;
+        bool wasHoveringSettings = isHoveringSettings;
+        
+        isHoveringMain = mainHitboxRect.Contains(localPoint);
+        isHoveringSettings = settingsHitboxRect.Contains(localPoint);
+        
+        // Debug draw the hitboxes
+        DebugDrawRect(mainHitboxRect, isHoveringMain ? Color.green : Color.red);
+        DebugDrawRect(settingsHitboxRect, isHoveringSettings ? Color.blue : Color.yellow);
+
+        // Handle main UI state changes
+        if (isHoveringMain != wasHoveringMain && !isMainAnimating)
+        {
+            if (isHoveringMain)
+                ShowActiveRoot();
+            else if (!isHoveringSettings)
+                HideMainRoot();
+        }
+
+        // Handle settings state changes
+        if (isHoveringSettings != wasHoveringSettings && !isSettingsAnimating)
+        {
+            if (isHoveringSettings)
+                ShowSettings();
+            else if (!isHoveringMain)
+                HideSettingsRoot();
+        }
+        
+        // Update animations
+        UpdateMainAnimation();
+        UpdateSettingsAnimation();
+    }
+
     private void DebugDrawRect(Rect rect, Color color)
     {
         Vector3[] corners = new Vector3[4];
@@ -103,211 +163,214 @@ public class UIHoverController : MonoBehaviour
             Debug.DrawLine(corners[i], corners[(i + 1) % 4], color);
         }
     }
-    
-    private void UpdateAnimation()
+
+    private void UpdateMainAnimation()
     {
-        if (targetRoot == null || targetRoot.rootTransform == null) return;
-        
-        // If we're at the target position, nothing to do
-        if (Vector2.Distance(targetRoot.rootTransform.anchoredPosition, targetPosition) < 0.1f)
+        if (targetMainRoot == null || targetMainRoot.rootTransform == null)
         {
-            targetRoot.rootTransform.anchoredPosition = targetPosition;
-            activeRoot = targetRoot;
+            isMainAnimating = false;
             return;
         }
         
         // Update animation
-        animationTimer += Time.unscaledDeltaTime;
-        float t = Mathf.Clamp01(animationTimer / slideDuration);
+        mainAnimTimer += Time.unscaledDeltaTime;
+        float t = Mathf.Clamp01(mainAnimTimer / slideDuration);
         t = slideCurve.Evaluate(t);
         
-        Vector2 newPosition = Vector2.Lerp(startPosition, targetPosition, t);
-        targetRoot.rootTransform.anchoredPosition = newPosition;
+        // Calculate new position
+        Vector2 newPosition = Vector2.Lerp(mainStartPos, mainTargetPos, t);
+        targetMainRoot.rootTransform.anchoredPosition = newPosition;
         
-        Debug.Log($"Animating {targetRoot.rootTransform.name} from {startPosition} to {targetPosition} (t={t}, pos={newPosition})");
-    }
-
-    private void Update()
-    {
-        if (!Input.mousePresent) return;
-        
-        // Convert mouse position to canvas space
-        Vector2 localPoint;
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            canvas.GetComponent<RectTransform>(),
-            Input.mousePosition,
-            uiCamera,
-            out localPoint
-        );
-        
-        // Check if mouse is over either hitbox
-        bool isHoveringMainNow = mainHitboxRect.Contains(localPoint);
-        bool isHoveringSettingsNow = settingsHitboxRect.Contains(localPoint);
-        
-        // Debug draw the hitboxes
-        DebugDrawRect(mainHitboxRect, isHoveringMainNow ? Color.green : Color.red);
-        DebugDrawRect(settingsHitboxRect, isHoveringSettingsNow ? Color.blue : Color.yellow);
-        }
-
-        // Check for state changes
-        if (isHoveringMainNow != wasHoveringMain)
+        // Check if animation is complete
+        if (t >= 1.0f)
         {
-            wasHoveringMain = isHoveringMainNow;
-            if (isHoveringMainNow)
+            targetMainRoot.rootTransform.anchoredPosition = mainTargetPos;
+            activeMainRoot = targetMainRoot;
+            isMainAnimating = false;
+            
+            // Process pending actions
+            if (pendingMainHide)
             {
-                Debug.Log("Main hitbox entered");
-                ShowActiveRoot();
+                pendingMainHide = false;
+                HideMainRoot();
             }
-            else if (!isHoveringSettingsNow)
+            else if (pendingMainRoot != null)
             {
-                Debug.Log("Main hitbox exited");
-                HideAllRoots();
+                var rootToShow = pendingMainRoot;
+                pendingMainRoot = null;
+                ShowRoot(rootToShow, isSettings: false);
             }
         }
-
-        if (isHoveringSettingsNow != wasHoveringSettings)
+    }
+    
+    private void UpdateSettingsAnimation()
+    {
+        if (targetSettingsRoot == null || targetSettingsRoot.rootTransform == null)
         {
-            wasHoveringSettings = isHoveringSettingsNow;
-            if (isHoveringSettingsNow)
-            {
-                Debug.Log("Settings hitbox entered");
-                ShowSettings();
-            }
-            else if (!isHoveringMainNow)
-            {
-                Debug.Log("Settings hitbox exited");
-                HideAllRoots();
-            }
+            isSettingsAnimating = false;
+            return;
         }
-
-        // Handle animation
-        UpdateAnimation();
-    }
-
-    private void SetupHitbox(RectTransform hitbox, System.Action<PointerEventData> onEnter, System.Action<PointerEventData> onExit)
-    {
-        if (hitbox == null) return;
         
-        var trigger = hitbox.GetComponent<EventTrigger>();
-        if (trigger == null) trigger = hitbox.gameObject.AddComponent<EventTrigger>();
+        // Update animation
+        settingsAnimTimer += Time.unscaledDeltaTime;
+        float t = Mathf.Clamp01(settingsAnimTimer / slideDuration);
+        t = slideCurve.Evaluate(t);
         
-        // Clear existing triggers to avoid duplicates
-        trigger.triggers.Clear();
+        // Calculate new position
+        Vector2 newPosition = Vector2.Lerp(settingsStartPos, settingsTargetPos, t);
+        targetSettingsRoot.rootTransform.anchoredPosition = newPosition;
         
-        // Add enter event
-        var enterEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
-        enterEntry.callback.AddListener((data) => onEnter?.Invoke((PointerEventData)data));
-        trigger.triggers.Add(enterEntry);
-        
-        // Add exit event
-        var exitEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
-        exitEntry.callback.AddListener((data) => onExit?.Invoke((PointerEventData)data));
-        trigger.triggers.Add(exitEntry);
-    }
-
-    private void OnMainHitboxEnter(PointerEventData eventData)
-    {
-        Debug.Log("Main hitbox entered");
-        isHoveringMain = true;
-        ShowActiveRoot();
-    }
-
-    private void OnMainHitboxExit(PointerEventData eventData)
-    {
-        Debug.Log("Main hitbox exited");
-        isHoveringMain = false;
-        if (!isHoveringSettings)
+        // Check if animation is complete
+        if (t >= 1.0f)
         {
-            Debug.Log("Hiding all roots");
-            HideAllRoots();
-        }
-    }
-
-    private void OnSettingsHitboxEnter(PointerEventData eventData)
-    {
-        Debug.Log("Settings hitbox entered");
-        isHoveringSettings = true;
-        ShowSettings();
-    }
-
-    private void OnSettingsHitboxExit(PointerEventData eventData)
-    {
-        Debug.Log("Settings hitbox exited");
-        isHoveringSettings = false;
-        if (!isHoveringMain)
-        {
-            Debug.Log("Hiding all roots");
-            HideAllRoots();
+            targetSettingsRoot.rootTransform.anchoredPosition = settingsTargetPos;
+            activeSettingsRoot = targetSettingsRoot;
+            isSettingsAnimating = false;
+            
+            // Process pending actions
+            if (pendingSettingsHide)
+            {
+                pendingSettingsHide = false;
+                HideSettingsRoot();
+            }
+            else if (pendingSettingsRoot != null)
+            {
+                var rootToShow = pendingSettingsRoot;
+                pendingSettingsRoot = null;
+                ShowRoot(rootToShow, isSettings: true);
+            }
         }
     }
 
     private void ShowActiveRoot()
     {
-        // Determine which root to show based on active tab
-        // For now, default to frameRoot - we'll add tab switching later
-        ShowRoot(frameRoot);
+        // Default to frame root if no active root
+        if (activeMainRoot == null)
+        {
+            ShowRoot(frameRoot, isSettings: false);
+        }
+        else
+        {
+            ShowRoot(activeMainRoot, isSettings: false);
+        }
     }
 
     private void ShowSettings()
     {
-        ShowRoot(settingsRoot);
+        ShowRoot(settingsRoot, isSettings: true);
     }
 
-    private void ShowRoot(UIRoot root)
+    private void ShowRoot(UIRoot root, bool isSettings)
     {
-        if (root == null)
+        if (root == null || root.rootTransform == null) return;
+        
+        // Determine which animation system to use
+        bool isAnimating = isSettings ? isSettingsAnimating : isMainAnimating;
+        
+        // If already showing this root, do nothing
+        if ((isSettings ? targetSettingsRoot : targetMainRoot) == root && !isAnimating) 
+            return;
+        
+        // If currently animating, queue this show request
+        if (isAnimating)
         {
-            Debug.LogError("Tried to show null root!");
+            if (isSettings)
+            pendingSettingsRoot = root;
+            else
+                pendingMainRoot = root;
             return;
         }
-        if (root.rootTransform == null)
+        
+        Debug.Log($"Showing {(isSettings ? "settings" : "main")} root: {root.rootTransform.name}");
+        
+        // Set up the appropriate animation
+        if (isSettings)
         {
-            Debug.LogError("Root transform is null for: " + root);
-            return;
+            settingsStartPos = root.rootTransform.anchoredPosition;
+            settingsTargetPos = root.visiblePosition;
+            targetSettingsRoot = root;
+            activeSettingsRoot = root;
+            settingsAnimTimer = 0f;
+            isSettingsAnimating = true;
         }
-        
-        Debug.Log($"Showing root: {root.rootTransform.name} (Active: {activeRoot?.rootTransform?.name ?? "none"}, Target: {targetRoot?.rootTransform?.name ?? "none"})");
-        
-        // If this root is already the active one, don't do anything
-        if (activeRoot == root && targetRoot == root)
+        else
         {
-            Debug.Log("Root is already active");
-            return;
+            mainStartPos = root.rootTransform.anchoredPosition;
+            mainTargetPos = root.visiblePosition;
+            targetMainRoot = root;
+            activeMainRoot = root;
+            mainAnimTimer = 0f;
+            isMainAnimating = true;
         }
-        
-        // Set up animation
-        startPosition = root.rootTransform.anchoredPosition;
-        targetPosition = root.visiblePosition;
-        targetRoot = root;
-        animationTimer = 0f;
-        
-        // Force update on first frame
-        UpdateAnimation();
     }
 
-    private void HideAllRoots()
+    private void HideMainRoot()
     {
-        Debug.Log("Hiding all UI roots");
+        if (targetMainRoot == null) return;
         
-        // Only hide if we're not already hiding
-        if (targetRoot == null) return;
+        // If currently animating, queue the hide
+        if (isMainAnimating)
+        {
+            pendingMainHide = true;
+            pendingMainRoot = null;
+            return;
+        }
         
-        // Set up animation to hide the current target
-        startPosition = targetRoot.rootTransform.anchoredPosition;
-        targetPosition = targetRoot.hiddenPosition;
-        animationTimer = 0f;
+        Debug.Log("Hiding main UI root");
         
-        Debug.Log($"Hiding {targetRoot.rootTransform.name} from {startPosition} to {targetPosition}");
+        // Set up hide animation
+        mainStartPos = targetMainRoot.rootTransform.anchoredPosition;
+        mainTargetPos = targetMainRoot.hiddenPosition;
+        mainAnimTimer = 0f;
+        isMainAnimating = true;
         
         // Clear references after animation completes
-        StartCoroutine(ClearAfterDelay(slideDuration));
+        StartCoroutine(ClearAfterDelay(slideDuration, isSettings: false));
     }
     
-    private System.Collections.IEnumerator ClearAfterDelay(float delay)
+    private void HideSettingsRoot()
+    {
+        if (targetSettingsRoot == null) return;
+        
+        // If currently animating, queue the hide
+        if (isSettingsAnimating)
+        {
+            pendingSettingsHide = true;
+            pendingSettingsRoot = null;
+            return;
+        }
+        
+        Debug.Log("Hiding settings UI root");
+        
+        // Set up hide animation
+        settingsStartPos = targetSettingsRoot.rootTransform.anchoredPosition;
+        settingsTargetPos = targetSettingsRoot.hiddenPosition;
+        settingsAnimTimer = 0f;
+        isSettingsAnimating = true;
+        
+        // Clear references after animation completes
+        StartCoroutine(ClearAfterDelay(slideDuration, isSettings: true));
+    }
+    
+    private void HideAllRoots()
+    {
+        HideMainRoot();
+        HideSettingsRoot();
+    }
+    
+    private IEnumerator ClearAfterDelay(float delay, bool isSettings)
     {
         yield return new WaitForSecondsRealtime(delay);
-        activeRoot = null;
-        targetRoot = null;
+        if (isSettings)
+        {
+            activeSettingsRoot = null;
+            targetSettingsRoot = null;
+        }
+        else
+        {
+            activeMainRoot = null;
+            targetMainRoot = null;
+        }
     }
 
     // Required interface implementation (not used directly)
