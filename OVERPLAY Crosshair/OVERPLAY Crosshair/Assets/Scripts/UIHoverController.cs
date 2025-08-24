@@ -1,6 +1,8 @@
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections;
+using System.Collections.Generic;
 
 public class UIHoverController : MonoBehaviour
 {
@@ -35,13 +37,14 @@ public class UIHoverController : MonoBehaviour
     [SerializeField] private float slideDuration = 0.3f;
     [SerializeField] private AnimationCurve slideCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     
-    // Main UI state
+    // Main UI states for each root
     private UIRoot activeMainRoot = null;
     private UIRoot targetMainRoot = null;
-    private Vector2 mainStartPos;
-    private Vector2 mainTargetPos;
-    private float mainAnimTimer = 0f;
-    private bool isMainAnimating = false;
+    private Dictionary<UIRoot, Vector2> rootStartPositions = new Dictionary<UIRoot, Vector2>();
+    private Dictionary<UIRoot, Vector2> rootTargetPositions = new Dictionary<UIRoot, Vector2>();
+    private Dictionary<UIRoot, float> rootAnimTimers = new Dictionary<UIRoot, float>();
+    private HashSet<UIRoot> animatingRoots = new HashSet<UIRoot>();
+    private List<UIRoot> mainRoots = new List<UIRoot>();
     private bool isHoveringMain = false;
     
     // Settings state
@@ -81,17 +84,22 @@ public class UIHoverController : MonoBehaviour
             settingsHitboxSize.x,
             settingsHitboxSize.y
         );
-
+        
+        // Initialize main roots list
+        if (frameRoot != null) mainRoots.Add(frameRoot);
+        if (hairRoot != null) mainRoots.Add(hairRoot);
+        if (dotRoot != null) mainRoots.Add(dotRoot);
+        
         // Initialize all roots to hidden position
         HideAllRoots();
         Debug.Log("UIHoverController initialized with manual hitboxes");
     }
 
-    // Queues for each UI section
+    // Queues for UI sections
+    private Queue<UIRoot> pendingMainShows = new Queue<UIRoot>();
     private bool pendingMainHide = false;
-    private UIRoot pendingMainRoot = null;
+    private Queue<UIRoot> pendingSettingsShows = new Queue<UIRoot>();
     private bool pendingSettingsHide = false;
-    private UIRoot pendingSettingsRoot = null;
     
     private void Update()
     {
@@ -118,16 +126,16 @@ public class UIHoverController : MonoBehaviour
         DebugDrawRect(settingsHitboxRect, isHoveringSettings ? Color.blue : Color.yellow);
 
         // Handle main UI state changes
-        if (isHoveringMain != wasHoveringMain && !isMainAnimating)
+        if (isHoveringMain != wasHoveringMain)
         {
             if (isHoveringMain)
                 ShowActiveRoot();
             else if (!isHoveringSettings)
-                HideMainRoot();
+                HideMainRoots();
         }
 
         // Handle settings state changes
-        if (isHoveringSettings != wasHoveringSettings && !isSettingsAnimating)
+        if (isHoveringSettings != wasHoveringSettings)
         {
             if (isHoveringSettings)
                 ShowSettings();
@@ -135,8 +143,8 @@ public class UIHoverController : MonoBehaviour
                 HideSettingsRoot();
         }
         
-        // Update animations
-        UpdateMainAnimation();
+        // Update animations for all roots
+        UpdateRootAnimations();
         UpdateSettingsAnimation();
     }
 
@@ -164,50 +172,87 @@ public class UIHoverController : MonoBehaviour
         }
     }
 
-    private void UpdateMainAnimation()
+    private void UpdateRootAnimations()
     {
-        if (targetMainRoot == null || targetMainRoot.rootTransform == null)
+        // Create a list of roots to process to avoid collection modified errors
+        var rootsToProcess = new List<UIRoot>(animatingRoots);
+        
+        foreach (var root in rootsToProcess)
         {
-            isMainAnimating = false;
-            return;
-        }
-        
-        // Update animation
-        mainAnimTimer += Time.unscaledDeltaTime;
-        float t = Mathf.Clamp01(mainAnimTimer / slideDuration);
-        t = slideCurve.Evaluate(t);
-        
-        // Calculate new position
-        Vector2 newPosition = Vector2.Lerp(mainStartPos, mainTargetPos, t);
-        targetMainRoot.rootTransform.anchoredPosition = newPosition;
-        
-        // Check if animation is complete
-        if (t >= 1.0f)
-        {
-            targetMainRoot.rootTransform.anchoredPosition = mainTargetPos;
-            activeMainRoot = targetMainRoot;
-            isMainAnimating = false;
-            
-            // Process pending actions
-            if (pendingMainHide)
+            if (root == null || root.rootTransform == null) 
             {
-                pendingMainHide = false;
-                HideMainRoot();
+                animatingRoots.Remove(root);
+                continue;
             }
-            else if (pendingMainRoot != null)
+            
+            // Update animation timer
+            float currentTime = rootAnimTimers[root] + Time.unscaledDeltaTime;
+            rootAnimTimers[root] = currentTime;
+            
+            // Calculate progress
+            float t = Mathf.Clamp01(currentTime / slideDuration);
+            t = slideCurve.Evaluate(t);
+            
+            // Update position
+            Vector2 startPos = rootStartPositions[root];
+            Vector2 targetPos = rootTargetPositions[root];
+            root.rootTransform.anchoredPosition = Vector2.Lerp(startPos, targetPos, t);
+            
+            // Check if animation is complete
+            if (t >= 1.0f)
             {
-                var rootToShow = pendingMainRoot;
-                pendingMainRoot = null;
-                ShowRoot(rootToShow, isSettings: false);
+                root.rootTransform.anchoredPosition = targetPos;
+                animatingRoots.Remove(root);
+                
+                // If this was showing a root, set it as active
+                if (targetPos == root.visiblePosition)
+                {
+                    activeMainRoot = root;
+                }
+                
+                // Process any pending actions
+                ProcessPendingActions();
             }
         }
     }
     
+    private void ProcessPendingActions()
+    {
+        // Process pending shows first
+        if (pendingMainShows.Count > 0 && animatingRoots.Count == 0)
+        {
+            var rootToShow = pendingMainShows.Dequeue();
+            ShowRoot(rootToShow, isSettings: false);
+        }
+        // Then process pending hides
+        else if (pendingMainHide && animatingRoots.Count == 0)
+        {
+            pendingMainHide = false;
+            HideMainRoots();
+        }
+    }
+    
+    private void StartSettingsAnimation(UIRoot root)
+    {
+        settingsStartPos = root.rootTransform.anchoredPosition;
+        settingsTargetPos = root.visiblePosition;
+        targetSettingsRoot = root;
+        activeSettingsRoot = root;
+        settingsAnimTimer = 0f;
+        isSettingsAnimating = true;
+    }
+
     private void UpdateSettingsAnimation()
     {
         if (targetSettingsRoot == null || targetSettingsRoot.rootTransform == null)
         {
             isSettingsAnimating = false;
+            // Process any pending shows if animation is complete
+            if (pendingSettingsShows.Count > 0)
+            {
+                var rootToShow = pendingSettingsShows.Dequeue();
+                StartSettingsAnimation(rootToShow);
+            }
             return;
         }
         
@@ -233,25 +278,23 @@ public class UIHoverController : MonoBehaviour
                 pendingSettingsHide = false;
                 HideSettingsRoot();
             }
-            else if (pendingSettingsRoot != null)
+            else if (pendingSettingsShows.Count > 0)
             {
-                var rootToShow = pendingSettingsRoot;
-                pendingSettingsRoot = null;
-                ShowRoot(rootToShow, isSettings: true);
+                var rootToShow = pendingSettingsShows.Dequeue();
+                StartSettingsAnimation(rootToShow);
             }
         }
     }
 
     private void ShowActiveRoot()
     {
-        // Default to frame root if no active root
-        if (activeMainRoot == null)
+        // Show all main roots
+        foreach (var root in mainRoots)
         {
-            ShowRoot(frameRoot, isSettings: false);
-        }
-        else
-        {
-            ShowRoot(activeMainRoot, isSettings: false);
+            if (root != null)
+            {
+                ShowRoot(root, isSettings: false);
+            }
         }
     }
 
@@ -264,65 +307,62 @@ public class UIHoverController : MonoBehaviour
     {
         if (root == null || root.rootTransform == null) return;
         
-        // Determine which animation system to use
-        bool isAnimating = isSettings ? isSettingsAnimating : isMainAnimating;
-        
-        // If already showing this root, do nothing
-        if ((isSettings ? targetSettingsRoot : targetMainRoot) == root && !isAnimating) 
-            return;
-        
-        // If currently animating, queue this show request
-        if (isAnimating)
-        {
-            if (isSettings)
-            pendingSettingsRoot = root;
-            else
-                pendingMainRoot = root;
-            return;
-        }
-        
-        Debug.Log($"Showing {(isSettings ? "settings" : "main")} root: {root.rootTransform.name}");
-        
-        // Set up the appropriate animation
+        // For settings, use the queue system
         if (isSettings)
         {
-            settingsStartPos = root.rootTransform.anchoredPosition;
-            settingsTargetPos = root.visiblePosition;
-            targetSettingsRoot = root;
-            activeSettingsRoot = root;
-            settingsAnimTimer = 0f;
-            isSettingsAnimating = true;
+            if (isSettingsAnimating)
+            pendingSettingsShows.Enqueue(root);
+            else
+                StartSettingsAnimation(root);
+            return;
         }
-        else
+        
+        // For main UI roots, use the new animation system
+        if (animatingRoots.Contains(root))
         {
-            mainStartPos = root.rootTransform.anchoredPosition;
-            mainTargetPos = root.visiblePosition;
-            targetMainRoot = root;
+            // If this root is already animating, queue the show
+            if (!pendingMainShows.Contains(root))
+                pendingMainShows.Enqueue(root);
+            return;
+        }
+        
+        Debug.Log($"Showing root: {root.rootTransform.name}");
+        
+        // Set up animation
+        rootStartPositions[root] = root.rootTransform.anchoredPosition;
+        rootTargetPositions[root] = root.visiblePosition;
+        rootAnimTimers[root] = 0f;
+        animatingRoots.Add(root);
+        
+        // If this is a main root, update the active root
+        if (mainRoots.Contains(root))
+        {
             activeMainRoot = root;
-            mainAnimTimer = 0f;
-            isMainAnimating = true;
         }
     }
 
-    private void HideMainRoot()
+    private void HideMainRoots()
     {
-        if (targetMainRoot == null) return;
-        
-        // If currently animating, queue the hide
-        if (isMainAnimating)
+        // If any roots are animating, queue the hide
+        if (animatingRoots.Count > 0)
         {
             pendingMainHide = true;
-            pendingMainRoot = null;
             return;
         }
         
-        Debug.Log("Hiding main UI root");
+        Debug.Log("Hiding all main UI roots");
         
-        // Set up hide animation
-        mainStartPos = targetMainRoot.rootTransform.anchoredPosition;
-        mainTargetPos = targetMainRoot.hiddenPosition;
-        mainAnimTimer = 0f;
-        isMainAnimating = true;
+        // Start hide animation for all main roots
+        foreach (var root in mainRoots)
+        {
+            if (root != null && root.rootTransform != null)
+            {
+                rootStartPositions[root] = root.rootTransform.anchoredPosition;
+                rootTargetPositions[root] = root.hiddenPosition;
+                rootAnimTimers[root] = 0f;
+                animatingRoots.Add(root);
+            }
+        }
         
         // Clear references after animation completes
         StartCoroutine(ClearAfterDelay(slideDuration, isSettings: false));
@@ -336,7 +376,6 @@ public class UIHoverController : MonoBehaviour
         if (isSettingsAnimating)
         {
             pendingSettingsHide = true;
-            pendingSettingsRoot = null;
             return;
         }
         
@@ -354,7 +393,7 @@ public class UIHoverController : MonoBehaviour
     
     private void HideAllRoots()
     {
-        HideMainRoot();
+        HideMainRoots();
         HideSettingsRoot();
     }
     
@@ -369,7 +408,11 @@ public class UIHoverController : MonoBehaviour
         else
         {
             activeMainRoot = null;
-            targetMainRoot = null;
+            // Don't clear targetMainRoot as we need it for multiple roots
+            
+            // Clear any pending shows since we're hiding
+            pendingMainShows.Clear();
+            pendingMainHide = false;
         }
     }
 
