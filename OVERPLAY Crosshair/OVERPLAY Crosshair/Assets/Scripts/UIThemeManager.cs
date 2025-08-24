@@ -49,19 +49,35 @@ public class UIThemeManager : MonoBehaviour
     {
         Debug.Log("UIThemeManager: Awake called");
         
-        // Load the hue shift shader
-        // Replace the Shader.Find line with:
-        hueShiftShader = Resources.Load<Shader>("Shaders/UIHueShiftShader");
+        // Load the hue shift shader by its name
+        hueShiftShader = Shader.Find("Custom/UIHueShiftShader");
         if (hueShiftShader != null)
         {
             hueShiftMaterial = new Material(hueShiftShader);
             Debug.Log("UIThemeManager: Successfully created hue shift material");
+            
+            // Make sure the shader is included in the build
+            #if UNITY_EDITOR
+            string shaderPath = UnityEditor.AssetDatabase.GetAssetPath(hueShiftShader);
+            if (!string.IsNullOrEmpty(shaderPath))
+            {
+                var shaderImporter = UnityEditor.AssetImporter.GetAtPath(shaderPath) as UnityEditor.ShaderImporter;
+                if (shaderImporter != null)
+                {
+                    Debug.Log($"UIThemeManager: Shader found at {shaderPath}");
+                    // Ensure the shader is included in the build
+                    UnityEditor.EditorApplication.delayCall += () => {
+                        UnityEditor.AssetDatabase.ImportAsset(shaderPath);
+                        Debug.Log("UIThemeManager: Reimported shader to ensure it's included in build");
+                    };
+                }
+            }
+            #endif
         }
         else
         {
             Debug.LogError("UIThemeManager: Could not find shader 'Custom/UIHueShiftShader'");
-            Debug.LogError("UIThemeManager: This usually means the shader is not included in the build");
-            Debug.LogError("UIThemeManager: Check that the shader file is in the Assets folder and not excluded from build");
+            Debug.LogError("UIThemeManager: Make sure the shader is in the 'Assets/Shaders' folder");
             
             // Try alternative shader names
             string[] alternativeShaderNames = {
@@ -338,57 +354,89 @@ public class UIThemeManager : MonoBehaviour
             return;
         }
         
+        Debug.Log($"UIThemeManager: Applying hue shift with H:{hueShift:F2}, S:{saturationMultiplier:F2}, V:{valueMultiplier:F2}");
+        
         // Update shader properties
-        hueShiftMaterial.SetFloat(HueShiftID, hueShift);
-        hueShiftMaterial.SetFloat(SaturationMultiplierID, saturationMultiplier);
-        hueShiftMaterial.SetFloat(ValueMultiplierID, valueMultiplier);
+        try
+        {
+            hueShiftMaterial.SetFloat(HueShiftID, hueShift);
+            hueShiftMaterial.SetFloat(SaturationMultiplierID, saturationMultiplier);
+            hueShiftMaterial.SetFloat(ValueMultiplierID, valueMultiplier);
+            Debug.Log("UIThemeManager: Successfully set shader properties");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"UIThemeManager: Error setting shader properties: {e.Message}");
+            
+            return;
+        }
+        
+        int uiElementsApplied = 0;
+        int uiElementsSkipped = 0;
         
         // Apply to all UI elements (checking exclusions each time)
-        for (int i = uiElements.Count - 1; i >= 0; i--)
+        for (int i = 0; i < uiElements.Count; i++)
         {
             if (uiElements[i] != null)
             {
                 // Check if this element should be excluded
                 if (ShouldExcludeElement(uiElements[i].gameObject))
                 {
-                    // Restore original material for excluded elements
-                    if (i < originalMaterials.Count)
+                    // Restore original material if excluded
+                    int originalIndex = i < originalMaterials.Count ? i : -1;
+                    if (originalIndex >= 0)
                     {
-                        uiElements[i].material = originalMaterials[i];
+                        uiElements[i].material = originalMaterials[originalIndex];
                     }
+                    uiElementsSkipped++;
                     Debug.Log($"UIThemeManager: Excluded UI element from theme: {uiElements[i].name}");
                 }
                 else
                 {
                     uiElements[i].material = hueShiftMaterial;
+                    uiElementsApplied++;
+                    Debug.Log($"UIThemeManager: Applied theme to UI element: {uiElements[i].name}");
                 }
             }
         }
         
+        int spritesApplied = 0;
+        int spritesSkipped = 0;
+        
         // Apply to all SpriteRenderers (checking exclusions each time)
-        for (int i = spriteRenderers.Count - 1; i >= 0; i--)
+        for (int i = 0; i < spriteRenderers.Count; i++)
         {
             if (spriteRenderers[i] != null)
             {
-                // Check if this sprite renderer should be excluded
+                // Check if this sprite should be excluded
                 if (ShouldExcludeElement(spriteRenderers[i].gameObject))
                 {
-                    // Restore original material for excluded elements
+                    // Restore original material if excluded
                     int originalIndex = uiElements.Count + i;
                     if (originalIndex < originalMaterials.Count)
                     {
                         spriteRenderers[i].material = originalMaterials[originalIndex];
                     }
+                    spritesSkipped++;
                     Debug.Log($"UIThemeManager: Excluded SpriteRenderer from theme: {spriteRenderers[i].name}");
                 }
                 else
                 {
                     spriteRenderers[i].material = hueShiftMaterial;
+                    spritesApplied++;
+                    Debug.Log($"UIThemeManager: Applied theme to SpriteRenderer: {spriteRenderers[i].name}");
                 }
             }
         }
         
-        Debug.Log($"UIThemeManager: Applied hue shift - H:{hueShift:F2}, S:{saturationMultiplier:F2}, V:{valueMultiplier:F2} to {uiElements.Count} UI elements and {spriteRenderers.Count} SpriteRenderers");
+        Debug.Log($"UIThemeManager: Applied theme to {uiElementsApplied} UI elements and {spritesApplied} SpriteRenderers");
+        Debug.Log($"UIThemeManager: Skipped {uiElementsSkipped} UI elements and {spritesSkipped} SpriteRenderers due to exclusions");
+        
+        // Test if the shader is properly assigned
+        if (uiElements.Count > 0 && uiElements[0] != null && uiElements[0].material != null)
+        {
+            Debug.Log($"UIThemeManager: First UI element material: {uiElements[0].material.name}, shader: {uiElements[0].material.shader.name}");
+        }
     }
     
     private void OnThemeDropdownChanged(int index)
