@@ -242,6 +242,18 @@ public class UIThemeManager : MonoBehaviour
         }
     }
     
+    // Helper method to get the full path of a transform
+    private string GetFullPath(Transform t)
+    {
+        string path = t.name;
+        while (t.parent != null)
+        {
+            t = t.parent;
+            path = t.name + "/" + path;
+        }
+        return path;
+    }
+    
     private bool ShouldExcludeElement(GameObject obj)
     {
         // Exclude crosshair object
@@ -262,9 +274,18 @@ public class UIThemeManager : MonoBehaviour
             }
         }
         
-        // Exclude objects with "Crosshair" or "HSV" in their name
-        string objName = obj.name.ToLower();
-        if (objName.Contains("crosshair") || objName.Contains("hsv") || objName.Contains("preview"))
+        // Get the full path to help with more specific exclusions
+        string fullPath = GetFullPath(obj.transform);
+        string fullPathLower = fullPath.ToLower();
+        
+        // Only exclude visual crosshair elements, not UI controls
+        if (fullPathLower.Contains("crosshair") && !fullPathLower.Contains("button") && !fullPathLower.Contains("hide"))
+        {
+            return true;
+        }
+        
+        // Keep excluding HSV preview elements
+        if (fullPathLower.Contains("hsv") || fullPathLower.Contains("preview"))
         {
             return true;
         }

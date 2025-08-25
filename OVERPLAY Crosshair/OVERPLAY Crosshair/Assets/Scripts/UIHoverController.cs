@@ -37,6 +37,31 @@ public class UIHoverController : MonoBehaviour
     [SerializeField] private float slideDuration = 0.3f;
     [SerializeField] private AnimationCurve slideCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     
+    [Header("Main Toggle")]
+    [SerializeField] private Toggle mainToggle;
+    [Tooltip("The GameObject with SpriteRenderer for the main toggle")]
+    [SerializeField] private GameObject mainToggleObject;
+    [Tooltip("Sprite to show when main toggle is active (locked in place)")]
+    [SerializeField] private Sprite mainToggleActiveSprite;
+    [Tooltip("Sprite to show when main toggle is inactive (default behavior)")]
+    [SerializeField] private Sprite mainToggleInactiveSprite;
+    
+    [Header("Settings Toggle")]
+    [SerializeField] private Toggle settingsToggle;
+    [Tooltip("The GameObject with SpriteRenderer for the settings toggle")]
+    [SerializeField] private GameObject settingsToggleObject;
+    [Tooltip("Sprite to show when settings toggle is active (locked in place)")]
+    [SerializeField] private Sprite settingsToggleActiveSprite;
+    [Tooltip("Sprite to show when settings toggle is inactive (default behavior)")]
+    [SerializeField] private Sprite settingsToggleInactiveSprite;
+    
+    // Toggle states
+    private bool isMainToggleOn = false; // When true, prevents main UI from moving up
+    private bool isSettingsToggleOn = false; // When true, prevents settings from moving up
+    private bool isFirstSettingsOpen = true; // Track first time settings are opened
+    private SpriteRenderer mainToggleRenderer;
+    private SpriteRenderer settingsToggleRenderer;
+    
     // Main UI states for each root
     private UIRoot activeMainRoot = null;
     private UIRoot targetMainRoot = null;
@@ -60,6 +85,10 @@ public class UIHoverController : MonoBehaviour
 
     private void Start()
     {
+        // Initialize hover states to false by default
+        isHoveringMain = false;
+        isHoveringSettings = false;
+        
         // Get the camera used for UI
         if (canvas.renderMode == RenderMode.ScreenSpaceOverlay)
         {
@@ -70,14 +99,7 @@ public class UIHoverController : MonoBehaviour
             uiCamera = canvas.worldCamera ?? Camera.main;
         }
 
-        // Initialize hitbox rects
-        mainHitboxRect = new Rect(
-            mainHitboxPosition.x - mainHitboxSize.x * 0.5f,
-            mainHitboxPosition.y - mainHitboxSize.y * 0.5f,
-            mainHitboxSize.x,
-            mainHitboxSize.y
-        );
-        
+        // Initialize hitbox rects - only for settings since main UI won't move
         settingsHitboxRect = new Rect(
             settingsHitboxPosition.x - settingsHitboxSize.x * 0.5f,
             settingsHitboxPosition.y - settingsHitboxSize.y * 0.5f,
@@ -85,14 +107,47 @@ public class UIHoverController : MonoBehaviour
             settingsHitboxSize.y
         );
         
-        // Initialize main roots list
-        if (frameRoot != null) mainRoots.Add(frameRoot);
-        if (hairRoot != null) mainRoots.Add(hairRoot);
-        if (dotRoot != null) mainRoots.Add(dotRoot);
+        // Initialize main roots - maintain editor positions
+        if (frameRoot != null) 
+        {
+            mainRoots.Add(frameRoot);
+            frameRoot.rootTransform.gameObject.SetActive(true);
+            
+            if (hairRoot != null) 
+            {
+                hairRoot.rootTransform.gameObject.SetActive(false);
+                mainRoots.Add(hairRoot);
+            }
+            
+            if (dotRoot != null) 
+            {
+                dotRoot.rootTransform.gameObject.SetActive(false);
+                mainRoots.Add(dotRoot);
+            }
+            
+            // Set frame as active by default
+            activeMainRoot = frameRoot;
+        }
         
-        // Initialize all roots to hidden position
-        HideAllRoots();
-        Debug.Log("UIHoverController initialized with manual hitboxes");
+        // Initialize settings toggle UI
+        if (settingsToggle != null)
+        {
+            settingsToggle.isOn = isSettingsToggleOn;
+            settingsToggle.onValueChanged.AddListener(OnSettingsToggleChanged);
+            if (settingsToggleObject != null)
+            {
+                settingsToggleRenderer = settingsToggleObject.GetComponent<SpriteRenderer>();
+                UpdateToggleVisual(settingsToggleRenderer, isSettingsToggleOn, settingsToggleActiveSprite, settingsToggleInactiveSprite);
+            }
+        }
+        
+        // Disable main toggle since we're removing its functionality
+        if (mainToggle != null)
+        {
+            mainToggle.gameObject.SetActive(false);
+        }
+        
+        Debug.Log("UIHoverController initialized - Main UI is static");
     }
 
     // Queues for UI sections
@@ -114,37 +169,23 @@ public class UIHoverController : MonoBehaviour
             out localPoint
         );
         
-        // Check if mouse is over either hitbox
-        bool wasHoveringMain = isHoveringMain;
+        // Check if mouse is over settings hitbox (main UI doesn't move anymore)
         bool wasHoveringSettings = isHoveringSettings;
-        
-        isHoveringMain = mainHitboxRect.Contains(localPoint);
         isHoveringSettings = settingsHitboxRect.Contains(localPoint);
         
-        // Debug draw the hitboxes
-        DebugDrawRect(mainHitboxRect, isHoveringMain ? Color.green : Color.red);
+        // Debug draw the settings hitbox
         DebugDrawRect(settingsHitboxRect, isHoveringSettings ? Color.blue : Color.yellow);
 
-        // Handle main UI state changes
-        if (isHoveringMain != wasHoveringMain)
-        {
-            if (isHoveringMain)
-                ShowActiveRoot();
-            else if (!isHoveringSettings)
-                HideMainRoots();
-        }
-
-        // Handle settings state changes
+        // Handle settings state changes only
         if (isHoveringSettings != wasHoveringSettings)
         {
             if (isHoveringSettings)
                 ShowSettings();
-            else if (!isHoveringMain)
+            else if (!isSettingsToggleOn)
                 HideSettingsRoot();
         }
         
-        // Update animations for all roots
-        UpdateRootAnimations();
+        // Only update settings animation (main UI doesn't animate)
         UpdateSettingsAnimation();
     }
 
@@ -193,6 +234,17 @@ public class UIHoverController : MonoBehaviour
             float t = Mathf.Clamp01(currentTime / slideDuration);
             t = slideCurve.Evaluate(t);
             
+            // Check if we should reverse the animation due to hover state
+            bool shouldBeVisible = isHoveringMain || isMainToggleOn;
+            if (shouldBeVisible && rootTargetPositions[root] != root.visiblePosition)
+            {
+                // Reverse the animation
+                rootStartPositions[root] = root.rootTransform.anchoredPosition;
+                rootTargetPositions[root] = root.visiblePosition;
+                rootAnimTimers[root] = 0f;
+                continue;
+            }
+            
             // Update position
             Vector2 startPos = rootStartPositions[root];
             Vector2 targetPos = rootTargetPositions[root];
@@ -212,6 +264,9 @@ public class UIHoverController : MonoBehaviour
                 
                 // Process any pending actions
                 ProcessPendingActions();
+                
+                // Force update hover state after animation
+                ForceUpdateHoverState();
             }
         }
     }
@@ -234,25 +289,50 @@ public class UIHoverController : MonoBehaviour
     
     private void StartSettingsAnimation(UIRoot root)
     {
+        if (root == null || root.rootTransform == null) return;
+        
+        isSettingsAnimating = true;
         settingsStartPos = root.rootTransform.anchoredPosition;
         settingsTargetPos = root.visiblePosition;
-        targetSettingsRoot = root;
-        activeSettingsRoot = root;
         settingsAnimTimer = 0f;
-        isSettingsAnimating = true;
+        targetSettingsRoot = root;
+        
+        // Show the root if it's hidden
+        root.rootTransform.gameObject.SetActive(true);
+        
+        // Start coroutine to lock settings after animation
+        StartCoroutine(LockSettingsAfterAnimation());
     }
-
+    
+    private IEnumerator LockSettingsAfterAnimation()
+    {
+        // Only lock on first open
+        if (isFirstSettingsOpen)
+        {
+            // Wait for the animation to complete
+            yield return new WaitForSeconds(slideDuration);
+            
+            // Lock the settings
+            isSettingsToggleOn = true;
+            isFirstSettingsOpen = false; // Only lock the first time
+            
+            if (settingsToggle != null)
+            {
+                settingsToggle.isOn = true;
+                UpdateToggleVisual(settingsToggleRenderer, true, settingsToggleActiveSprite, settingsToggleInactiveSprite);
+            }
+        }
+        else
+        {
+            yield return null; // No need to wait if not first open
+        }
+    }
+    
     private void UpdateSettingsAnimation()
     {
         if (targetSettingsRoot == null || targetSettingsRoot.rootTransform == null)
         {
             isSettingsAnimating = false;
-            // Process any pending shows if animation is complete
-            if (pendingSettingsShows.Count > 0)
-            {
-                var rootToShow = pendingSettingsShows.Dequeue();
-                StartSettingsAnimation(rootToShow);
-            }
             return;
         }
         
@@ -288,18 +368,30 @@ public class UIHoverController : MonoBehaviour
 
     private void ShowActiveRoot()
     {
-        // Show all main roots
+        // Only handle visibility, no position changes
         foreach (var root in mainRoots)
         {
-            if (root != null)
+            if (root != null && root.rootTransform != null)
             {
-                ShowRoot(root, isSettings: false);
+                // Only modify visibility, not position
+                root.rootTransform.gameObject.SetActive(root == activeMainRoot);
             }
         }
     }
 
     private void ShowSettings()
     {
+        // If toggle is on, force show settings in visible position
+        if (isSettingsToggleOn && settingsRoot != null && settingsRoot.rootTransform != null)
+        {
+            settingsRoot.rootTransform.anchoredPosition = settingsRoot.visiblePosition;
+            settingsRoot.rootTransform.gameObject.SetActive(true);
+            targetSettingsRoot = settingsRoot;
+            activeSettingsRoot = settingsRoot;
+            return;
+        }
+        
+        // Otherwise, show with animation
         ShowRoot(settingsRoot, isSettings: true);
     }
 
@@ -343,34 +435,15 @@ public class UIHoverController : MonoBehaviour
 
     private void HideMainRoots()
     {
-        // If any roots are animating, queue the hide
-        if (animatingRoots.Count > 0)
-        {
-            pendingMainHide = true;
-            return;
-        }
-        
-        Debug.Log("Hiding all main UI roots");
-        
-        // Start hide animation for all main roots
-        foreach (var root in mainRoots)
-        {
-            if (root != null && root.rootTransform != null)
-            {
-                rootStartPositions[root] = root.rootTransform.anchoredPosition;
-                rootTargetPositions[root] = root.hiddenPosition;
-                rootAnimTimers[root] = 0f;
-                animatingRoots.Add(root);
-            }
-        }
-        
-        // Clear references after animation completes
-        StartCoroutine(ClearAfterDelay(slideDuration, isSettings: false));
+        // No hiding - main UI is static
     }
     
     private void HideSettingsRoot()
     {
         if (targetSettingsRoot == null) return;
+        
+        // Don't hide if toggle is on (locked in place)
+        if (isSettingsToggleOn) return;
         
         // If currently animating, queue the hide
         if (isSettingsAnimating)
@@ -416,6 +489,50 @@ public class UIHoverController : MonoBehaviour
         }
     }
 
+    // Main toggle is disabled - this method is kept for compatibility
+    private void OnMainToggleChanged(bool isOn)
+    {
+        // No functionality - main toggle is disabled
+    }
+    
+    private void OnSettingsToggleChanged(bool isOn)
+    {
+        isSettingsToggleOn = isOn;
+        Debug.Log($"Settings UI movement {(isOn ? "locked" : "unlocked")}");
+        
+        // Update toggle visual
+        UpdateToggleVisual(settingsToggleRenderer, isOn, settingsToggleActiveSprite, settingsToggleInactiveSprite);
+        
+        // If toggle is turned off and we're not hovering, hide the settings
+        if (!isOn && !isHoveringSettings)
+        {
+            HideSettingsRoot();
+        }
+    }
+    
+    private void UpdateToggleVisual(SpriteRenderer renderer, bool isOn, Sprite activeSprite, Sprite inactiveSprite)
+    {
+        if (renderer != null)
+        {
+            renderer.sprite = isOn ? activeSprite : inactiveSprite;
+        }
+    }
+
+    private void ForceUpdateHoverState()
+    {
+        // Force update the hover state to check for changes
+        bool wasHoveringMain = isHoveringMain;
+        bool wasHoveringSettings = isHoveringSettings;
+        
+        // This will trigger the hover state checks in the next frame
+        isHoveringMain = false;
+        isHoveringSettings = false;
+        
+        // Restore the hover state to trigger proper updates
+        isHoveringMain = wasHoveringMain;
+        isHoveringSettings = wasHoveringSettings;
+    }
+    
     // Required interface implementation (not used directly)
     public void OnPointerEnter(PointerEventData eventData) { }
     public void OnPointerExit(PointerEventData eventData) { }
