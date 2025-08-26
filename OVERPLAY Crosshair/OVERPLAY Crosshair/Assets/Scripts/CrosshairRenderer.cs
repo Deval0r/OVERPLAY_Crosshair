@@ -1089,8 +1089,6 @@ private void OnDestroy()
     {
         if (isLoadingPreset || isSavingPreset) return;
         
-
-        
         // Only save if we're actually changing presets and enough time has passed
         if (newIndex != currentPresetIndex && (Time.unscaledTime - lastPresetSaveTime) > 0.1f)
         {
@@ -1098,9 +1096,22 @@ private void OnDestroy()
             SaveCurrentPresetSafely();
         }
         
+        // Update the current preset index
         currentPresetIndex = newIndex;
+        
+        // Update dropdown text to show the new preset name
+        if (presetDropdown != null)
+        {
+            // Force update the dropdown's text by setting the value and refreshing the caption
+            presetDropdown.SetValueWithoutNotify(currentPresetIndex);
+            if (presetDropdown.captionText != null)
+            {
+                presetDropdown.captionText.text = $"Preset {currentPresetIndex + 1}";
+            }
+        }
+        
+        // Load the new preset
         LoadCrosshairFromCode(presets[currentPresetIndex]);
-
     }
     
     private void SaveCurrentPresetSafely()
@@ -1783,6 +1794,8 @@ private void OnDestroy()
                         hairCount = int.Parse(parts[2]);
                         customAngle = ParseF(parts[3]);
                         hairThickness = ParseF(parts[4]);
+                        // Load hairsExtendPastFrame before hairLength and hairDistance
+                        hairsExtendPastFrame = parts.Length > 15 && parts[15] == "1";
                         hairLength = ParseF(parts[5]);
                         hairColor = new Color(ParseF(parts[6]), ParseF(parts[7]), ParseF(parts[8]), ParseF(parts[9]));
                         hairOpacity = ParseF(parts[10]);
@@ -1790,10 +1803,7 @@ private void OnDestroy()
                         hairHue = ParseF(parts[12]);
                         hairSaturation = ParseF(parts[13]);
                         hairValue = parts.Length > 14 ? ParseF(parts[14]) : 1f;
-                        hairsExtendPastFrame = parts.Length > 15 && parts[15] == "1";
                         hairDistance = parts.Length > 16 ? ParseF(parts[16]) : 0.2f;
-                        
-                        // Ensure hair distance is within valid range
                         hairDistance = Mathf.Clamp01(hairDistance);
                     }
                     break;

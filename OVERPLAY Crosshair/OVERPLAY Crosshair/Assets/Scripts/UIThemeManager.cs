@@ -49,30 +49,49 @@ public class UIThemeManager : MonoBehaviour
     {
         Debug.Log("UIThemeManager: Awake called");
         
-        // Load the hue shift shader by its name
-        hueShiftShader = Shader.Find("Custom/UIHueShiftShader");
+        // First try to load the shader directly from Resources if in build
+        #if !UNITY_EDITOR
+        hueShiftShader = Resources.Load<Shader>("Shaders/UIHueShiftShader");
         if (hueShiftShader != null)
         {
-            hueShiftMaterial = new Material(hueShiftShader);
-            Debug.Log("UIThemeManager: Successfully created hue shift material");
-            
-            // Make sure the shader is included in the build
-            #if UNITY_EDITOR
-            string shaderPath = UnityEditor.AssetDatabase.GetAssetPath(hueShiftShader);
-            if (!string.IsNullOrEmpty(shaderPath))
+            Debug.Log("UIThemeManager: Successfully loaded shader from Resources");
+        }
+        #endif
+        
+        // If not found in Resources or in Editor, try Shader.Find
+        if (hueShiftShader == null)
+        {
+            hueShiftShader = Shader.Find("Custom/UIHueShiftShader");
+            if (hueShiftShader != null)
             {
-                var shaderImporter = UnityEditor.AssetImporter.GetAtPath(shaderPath) as UnityEditor.ShaderImporter;
-                if (shaderImporter != null)
+                Debug.Log("UIThemeManager: Found shader via Shader.Find");
+            }
+        }
+        
+        // If we have a shader, create the material
+        if (hueShiftShader != null)
+        {
+            try
+            {
+                hueShiftMaterial = new Material(hueShiftShader);
+                Debug.Log("UIThemeManager: Successfully created hue shift material");
+                
+                // In Editor, ensure the shader is included in the build
+                #if UNITY_EDITOR
+                string shaderPath = UnityEditor.AssetDatabase.GetAssetPath(hueShiftShader);
+                if (!string.IsNullOrEmpty(shaderPath))
                 {
                     Debug.Log($"UIThemeManager: Shader found at {shaderPath}");
-                    // Ensure the shader is included in the build
-                    UnityEditor.EditorApplication.delayCall += () => {
-                        UnityEditor.AssetDatabase.ImportAsset(shaderPath);
-                        Debug.Log("UIThemeManager: Reimported shader to ensure it's included in build");
-                    };
+                    // Mark the shader to be included in build
+                    UnityEditor.EditorUtility.SetDirty(hueShiftShader);
+                    UnityEditor.AssetDatabase.SaveAssets();
                 }
+                #endif
             }
-            #endif
+            catch (System.Exception e)
+            {
+                Debug.LogError($"UIThemeManager: Error creating material: {e.Message}");
+            }
         }
         else
         {
