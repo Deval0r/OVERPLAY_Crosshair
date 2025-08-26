@@ -41,6 +41,8 @@ public class CrosshairRenderer : Graphic
     public Color hairColor = Color.red;
     [Range(0, 1)] public float hairOpacity = 1f;
     [Range(0, 360)] public float hairsRotation = 0f;
+    public bool hairsExtendPastFrame = false;
+    [Range(0, 1)] public float hairDistance = 0.2f;
 
     // Dot
     public CrosshairShape dotShape = CrosshairShape.Square;
@@ -1028,6 +1030,26 @@ public class CrosshairRenderer : Graphic
         bool isCustom = hairStyle == HairStyle.Custom;
         if (customAngleSlider) customAngleSlider.gameObject.SetActive(isCustom);
         if (hairCountSlider) hairCountSlider.gameObject.SetActive(!isCustom);
+        
+        // Update hair color preview if available
+        if (hairColorPreviewRenderer != null)
+        {
+            Color previewColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
+            previewColor.a = hairOpacity;
+            hairColorPreviewRenderer.color = previewColor;
+        }
+        
+        // Update hair extend past frame toggle if available
+        if (hairsExtendPastFrameToggle != null)
+        {
+            hairsExtendPastFrameToggle.isOn = hairsExtendPastFrame;
+        }
+        
+        // Update hair distance slider if available
+        if (hairDistanceSlider != null)
+        {
+            hairDistanceSlider.SetValueWithoutNotify(hairDistance);
+        }
     }
 
     // Continue with all your existing methods unchanged...
@@ -1694,19 +1716,21 @@ private void OnDestroy()
         );
         
         // Hairs section - use internal variables only
-        bool hairsExtendPastFrame = hairsExtendPastFrameToggle != null ? hairsExtendPastFrameToggle.isOn : false;
         string hairsSection = string.Join(",",
             "H",
-            HairStyleToCode(hairStyle),
-            hairCount,
+            hairStyle == HairStyle.Even ? "E" : "C",
+            hairCount.ToString(),
             customAngle.ToString("F3"),
             hairThickness.ToString("F3"),
             hairLength.ToString("F3"),
             hairColor.r.ToString("F3"), hairColor.g.ToString("F3"), hairColor.b.ToString("F3"), hairColor.a.ToString("F3"),
             hairOpacity.ToString("F3"),
             hairsRotation.ToString("F3"),
-            hairHue.ToString("F3"), hairSaturation.ToString("F3"), hairValue.ToString("F3"),
-            hairsExtendPastFrame ? "1" : "0"
+            hairHue.ToString("F3"),
+            hairSaturation.ToString("F3"),
+            hairValue.ToString("F3"),
+            hairsExtendPastFrame ? "1" : "0",
+            hairDistance.ToString("F3")
         );
         
         // Dot section - use internal variables only
@@ -1753,7 +1777,7 @@ private void OnDestroy()
                     }
                     break;
                 case "H":
-                    if (parts.Length >= 17)
+                    if (parts.Length >= 14)
                     {
                         hairStyle = CodeToHairStyle(parts[1]);
                         hairCount = int.Parse(parts[2]);
@@ -1765,9 +1789,12 @@ private void OnDestroy()
                         hairsRotation = ParseF(parts[11]);
                         hairHue = ParseF(parts[12]);
                         hairSaturation = ParseF(parts[13]);
-                        hairValue = ParseF(parts[14]);
-                        if (hairsExtendPastFrameToggle != null)
-                            hairsExtendPastFrameToggle.SetIsOnWithoutNotify(parts[15] == "1");
+                        hairValue = parts.Length > 14 ? ParseF(parts[14]) : 1f;
+                        hairsExtendPastFrame = parts.Length > 15 && parts[15] == "1";
+                        hairDistance = parts.Length > 16 ? ParseF(parts[16]) : 0.2f;
+                        
+                        // Ensure hair distance is within valid range
+                        hairDistance = Mathf.Clamp01(hairDistance);
                     }
                     break;
                 case "D":
@@ -1813,6 +1840,7 @@ private void OnDestroy()
             if (frameSaturationSlider) frameSaturationSlider.SetValueWithoutNotify(frameSaturation);
             if (frameValueSlider) frameValueSlider.SetValueWithoutNotify(frameValue);
             
+            // Update hair UI elements
             if (hairStyleDropdown) hairStyleDropdown.SetValueWithoutNotify((int)hairStyle);
             if (hairCountSlider) hairCountSlider.SetValueWithoutNotify(hairCount);
             if (customAngleSlider) customAngleSlider.SetValueWithoutNotify(customAngle);
@@ -1823,6 +1851,8 @@ private void OnDestroy()
             if (hairSaturationSlider) hairSaturationSlider.SetValueWithoutNotify(hairSaturation);
             if (hairValueSlider) hairValueSlider.SetValueWithoutNotify(hairValue);
             if (hairOpacitySlider) hairOpacitySlider.SetValueWithoutNotify(hairOpacity);
+            if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.SetIsOnWithoutNotify(hairsExtendPastFrame);
+            if (hairDistanceSlider) hairDistanceSlider.SetValueWithoutNotify(hairDistance);
             
             if (dotShapeDropdown) dotShapeDropdown.SetValueWithoutNotify((int)dotShape);
             if (dotFilledToggle) dotFilledToggle.SetIsOnWithoutNotify(dotFilled);
