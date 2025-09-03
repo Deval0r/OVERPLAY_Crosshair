@@ -959,6 +959,14 @@ public class CrosshairRenderer : Graphic
             {
                 if (uiVisible)
                 {
+                    // Ensure UI is active before applying theme
+                    if (!uiRoot.activeSelf)
+                    {
+                        uiRoot.SetActive(true);
+                    }
+                    // Force update UI to apply current theme
+                    UpdateUIFromValues();
+                    // Then start dissolve effect
                     dissolveEffect.DissolveIn();
                 }
                 else
@@ -1839,6 +1847,11 @@ private void OnDestroy()
         
         try
         {
+            // Ensure UI root is active before updating values
+            if (uiRoot != null && !uiRoot.activeSelf)
+            {
+                uiRoot.SetActive(true);
+            }
             // Update UI sliders and dropdowns to match current values (without triggering callbacks)
             if (frameShapeDropdown) frameShapeDropdown.SetValueWithoutNotify((int)frameShape);
             if (frameFilledToggle) frameFilledToggle.SetIsOnWithoutNotify(frameFilled);

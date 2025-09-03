@@ -218,6 +218,9 @@ public class UIDissolveEffect : MonoBehaviour
                 gameObject.SetActive(true);
             }
             
+            // Refresh original materials to ensure theme colors are current
+            RefreshOriginalMaterials();
+            
             Debug.Log("UIDissolveEffect: Starting DissolveIn coroutine");
             coroutineRunner.StartCoroutine(DissolveInCoroutine());
         }
@@ -297,6 +300,19 @@ public class UIDissolveEffect : MonoBehaviour
         FadeTextElements(1f);
         FadeSpriteElements(1f);
         
+        // Reapply original materials to ensure theme is properly set
+        RestoreOriginalMaterial();
+        
+        // Reapply theme shader to ensure hue shift is maintained
+        UIThemeManager themeManager = FindObjectOfType<UIThemeManager>();
+        if (themeManager != null)
+        {
+            // Use the public ApplyTheme method to reapply the current theme
+            int currentThemeIndex = themeManager.GetCurrentThemeIndex();
+            themeManager.ApplyTheme(currentThemeIndex);
+            Debug.Log($"UIDissolveEffect: Reapplied theme {currentThemeIndex} after dissolve effect");
+        }
+        
         Debug.Log("UIDissolveEffect: DissolveInCoroutine completed");
         isDissolving = false;
     }
@@ -346,6 +362,9 @@ public class UIDissolveEffect : MonoBehaviour
         }
         FadeTextElements(0f);
         FadeSpriteElements(0f);
+        
+        // Restore original materials before disabling
+        RestoreOriginalMaterial();
         
         // Disable the GameObject
         Debug.Log("UIDissolveEffect: Disabling GameObject after DissolveOut");
@@ -585,6 +604,55 @@ public class UIDissolveEffect : MonoBehaviour
     public float GetSoundVolume()
     {
         return soundVolume;
+    }
+    
+    // Refresh the cached original materials and colors to ensure theme colors are current
+    private void RefreshOriginalMaterials()
+    {
+        // Refresh image materials
+        if (uiImages != null)
+        {
+            originalImageMaterials = new Material[uiImages.Length];
+            for (int i = 0; i < uiImages.Length; i++)
+            {
+                if (uiImages[i] != null)
+                {
+                    originalImageMaterials[i] = uiImages[i].material;
+                }
+            }
+        }
+        
+        // Refresh text materials and colors
+        if (uiTexts != null)
+        {
+            originalTextMaterials = new Material[uiTexts.Length];
+            originalTextColors = new Color[uiTexts.Length];
+            for (int i = 0; i < uiTexts.Length; i++)
+            {
+                if (uiTexts[i] != null)
+                {
+                    originalTextMaterials[i] = uiTexts[i].material;
+                    originalTextColors[i] = uiTexts[i].color;
+                }
+            }
+        }
+        
+        // Refresh sprite renderer materials and colors
+        if (spriteRenderers != null)
+        {
+            originalSpriteMaterials = new Material[spriteRenderers.Length];
+            originalSpriteColors = new Color[spriteRenderers.Length];
+            for (int i = 0; i < spriteRenderers.Length; i++)
+            {
+                if (spriteRenderers[i] != null)
+                {
+                    originalSpriteMaterials[i] = spriteRenderers[i].material;
+                    originalSpriteColors[i] = spriteRenderers[i].color;
+                }
+            }
+        }
+        
+        Debug.Log("UIDissolveEffect: Refreshed original materials and colors");
     }
 }
 
