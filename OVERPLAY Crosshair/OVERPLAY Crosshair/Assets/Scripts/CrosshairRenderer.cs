@@ -1042,9 +1042,7 @@ public class CrosshairRenderer : Graphic
         // Update hair color preview if available
         if (hairColorPreviewRenderer != null)
         {
-            Color previewColor = Color.HSVToRGB(hairHue, hairSaturation, hairValue);
-            previewColor.a = hairOpacity;
-            hairColorPreviewRenderer.color = previewColor;
+            hairColorPreviewRenderer.color = Color.white;
         }
         
         // Update hair extend past frame toggle if available
