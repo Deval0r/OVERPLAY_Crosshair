@@ -180,9 +180,14 @@ public class UIHoverController : MonoBehaviour
         if (isHoveringSettings != wasHoveringSettings)
         {
             if (isHoveringSettings)
+            {
                 ShowSettings();
-            else if (!isSettingsToggleOn)
+            }
+            // Only allow hiding if it's not the first time opening or if it's already locked
+            else if (!isFirstSettingsOpen || isSettingsToggleOn)
+            {
                 HideSettingsRoot();
+            }
         }
         
         // Only update settings animation (main UI doesn't animate)
@@ -314,13 +319,15 @@ public class UIHoverController : MonoBehaviour
             
             // Lock the settings
             isSettingsToggleOn = true;
-            isFirstSettingsOpen = false; // Only lock the first time
             
             if (settingsToggle != null)
             {
                 settingsToggle.isOn = true;
                 UpdateToggleVisual(settingsToggleRenderer, true, settingsToggleActiveSprite, settingsToggleInactiveSprite);
             }
+            
+            // Only set first open to false after we've locked it
+            isFirstSettingsOpen = false;
         }
         else
         {
