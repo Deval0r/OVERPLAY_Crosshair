@@ -474,6 +474,7 @@ public class CrosshairRenderer : Graphic
         });
         if (hairsExtendPastFrameToggle) hairsExtendPastFrameToggle.onValueChanged.AddListener(val => { 
             if (isLoadingPreset) return;
+            hairsExtendPastFrame = val;
             SetVerticesDirty(); 
         });
         if (hairDistanceSlider) hairDistanceSlider.onValueChanged.AddListener(val => { 
@@ -1811,6 +1812,10 @@ private void OnDestroy()
                         if (parts.Length > 15)
                         {
                             hairsExtendPastFrame = parts[15] == "1";
+                            if (hairsExtendPastFrameToggle != null)
+                            {
+                                hairsExtendPastFrameToggle.SetIsOnWithoutNotify(hairsExtendPastFrame);
+                            }
                             if (parts.Length > 16)
                             {
                                 hairDistance = Mathf.Clamp01(ParseF(parts[16]));
@@ -1819,6 +1824,10 @@ private void OnDestroy()
                         else
                         {
                             hairsExtendPastFrame = false;
+                            if (hairsExtendPastFrameToggle != null)
+                            {
+                                hairsExtendPastFrameToggle.SetIsOnWithoutNotify(false);
+                            }
                             hairDistance = 0.2f;
                         }
                     }
