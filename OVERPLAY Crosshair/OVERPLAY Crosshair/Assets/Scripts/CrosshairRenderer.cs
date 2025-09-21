@@ -1228,7 +1228,7 @@ private void OnDestroy()
         float thickness = hairThickness;
         float length = hairLength * frameScale;
         float baseRot = -hairsRotation * Mathf.Deg2Rad; // Invert for clockwise
-        float hairDistance = hairDistanceSlider != null ? hairDistanceSlider.value : 0.2f; // Default to 0.2 if not set
+        hairDistance = hairDistanceSlider != null ? hairDistanceSlider.value : 0.2f; // Default to 0.2 if not set
         if (hairStyle == HairStyle.Custom)
         {
             angleStep = customAngle;
@@ -1800,8 +1800,6 @@ private void OnDestroy()
                         hairCount = int.Parse(parts[2]);
                         customAngle = ParseF(parts[3]);
                         hairThickness = ParseF(parts[4]);
-                        // Load hairsExtendPastFrame before hairLength and hairDistance
-                        hairsExtendPastFrame = parts.Length > 15 && parts[15] == "1";
                         hairLength = ParseF(parts[5]);
                         hairColor = new Color(ParseF(parts[6]), ParseF(parts[7]), ParseF(parts[8]), ParseF(parts[9]));
                         hairOpacity = ParseF(parts[10]);
@@ -1809,8 +1807,20 @@ private void OnDestroy()
                         hairHue = ParseF(parts[12]);
                         hairSaturation = ParseF(parts[13]);
                         hairValue = parts.Length > 14 ? ParseF(parts[14]) : 1f;
-                        hairDistance = parts.Length > 16 ? ParseF(parts[16]) : 0.2f;
-                        hairDistance = Mathf.Clamp01(hairDistance);
+                        // Load hairsExtendPastFrame and hairDistance after all other hair settings
+                        if (parts.Length > 15)
+                        {
+                            hairsExtendPastFrame = parts[15] == "1";
+                            if (parts.Length > 16)
+                            {
+                                hairDistance = Mathf.Clamp01(ParseF(parts[16]));
+                            }
+                        }
+                        else
+                        {
+                            hairsExtendPastFrame = false;
+                            hairDistance = 0.2f;
+                        }
                     }
                     break;
                 case "D":
